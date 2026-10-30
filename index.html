@@ -16,16 +16,16 @@ html,body{margin:0}
 :root{
   --bg:#f6f4f4; --surface:#ffffff; --ink:#171516; --muted:#6c6466; --line:#ddd6d7;
   --scarlet:#c8102e; --scarlet-ink:#ffffff; --black:#121112;
-  --gym:#c8102e; --field:#2f7a4a; --away:#4b4547; --tent:#9a7b12;
+  --gym:#0067a5; --field:#c46a00; --park:#a2457e; --away:#4b4547; --tent:#9a7b12;
   --display:"Oswald","Arial Narrow",Impact,sans-serif;
   --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#121011; --surface:#1c191a; --ink:#f1eded; --muted:#a59c9e; --line:#3a3335;
-  --scarlet:#e3263f; --black:#000; --gym:#ff4d63; --field:#57b97a; --away:#b3aaac; --tent:#e0be52; color-scheme:dark}}
+  --scarlet:#e3263f; --black:#000; --gym:#56b4e9; --field:#e69f00; --park:#cc79a7; --away:#b3aaac; --tent:#e0be52; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121011; --surface:#1c191a; --ink:#f1eded; --muted:#a59c9e; --line:#3a3335;
-  --scarlet:#e3263f; --black:#000; --gym:#ff4d63; --field:#57b97a; --away:#b3aaac; --tent:#e0be52; color-scheme:dark}
+  --scarlet:#e3263f; --black:#000; --gym:#56b4e9; --field:#e69f00; --park:#cc79a7; --away:#b3aaac; --tent:#e0be52; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4;
@@ -70,7 +70,11 @@ select,input[type=text],input[type=date],input[type=time]{background:var(--surfa
 .day:hover .add,.add:focus-visible{opacity:1}
 .fac{display:flex;flex-direction:column;gap:2px}
 .flag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:4px;padding:1px 6px;color:#fff;align-self:flex-start}
-.flag.gym{background:var(--gym)} .flag.field{background:var(--field)}
+.flag{color:#000}
+.flag.gym{background:var(--gym);color:#fff} .flag.field{background:var(--field)} .flag.park{background:var(--park);color:#fff}
+:root[data-theme="dark"] .flag.gym{color:#000}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .flag.gym,:root:not([data-theme="light"]) .flag.park{color:#000}}
+:root[data-theme="dark"] .flag.park{color:#000}
 .ev{display:block;width:100%;text-align:left;border:1px solid var(--line);border-left:4px solid var(--c);background:var(--surface);border-radius:5px;padding:3px 6px;font-size:12.5px;line-height:1.25;cursor:pointer;color:var(--ink)}
 .ev:hover{border-color:var(--c)}
 .ev b{font-weight:700}
@@ -86,7 +90,7 @@ tbody tr:hover td{background:var(--bg)}
 td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 .pill{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:1px 9px;border:1px solid currentColor}
 .pill.H{color:var(--scarlet)} .pill.A{color:var(--away)}
-.pill.gym{color:var(--gym)} .pill.field{color:var(--field)}
+.pill.gym{color:var(--gym)} .pill.field{color:var(--field)} .pill.park{color:var(--park)}
 .tentnote{color:var(--tent);font-size:12px;font-weight:600}
 .mrow td{background:var(--bg);font-family:var(--display);font-weight:600;font-size:16px;letter-spacing:.03em;cursor:default}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
@@ -157,7 +161,8 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <select id="fFac">
       <option value="all">All games</option>
       <option value="HS gym">HS gym bookings</option>
-      <option value="Baseball/softball field">Baseball/softball field bookings</option>
+      <option value="School field">School field bookings</option>
+      <option value="Park field">Park field bookings</option>
     </select>
     <label class="lbl" for="fTeam">Team</label>
     <select id="fTeam"><option value="">All teams</option></select>
@@ -176,7 +181,7 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
       <h2 id="mtitle"></h2>
       <button class="btn" id="next" aria-label="Next month">›</button>
       <button class="btn" id="todayBtn">Today</button>
-      <div class="key" id="calKey"><span><i style="background:var(--gym)"></i>HS gym booked</span><span><i style="background:var(--field)"></i>Field booked</span><span><i style="border:1px dashed var(--muted)"></i>Date may change</span></div>
+      <div class="key" id="calKey"><span><i style="background:var(--gym)"></i>HS gym booked</span><span><i style="background:var(--field)"></i>School field booked</span><span><i style="background:var(--park)"></i>Park field booked</span><span><i style="border:1px dashed var(--muted)"></i>Date may change</span></div>
     </div>
   <div id="calView">
     <div class="gridwrap"><div class="grid" id="grid"></div></div>
@@ -203,7 +208,7 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <datalist id="teamList"></datalist>
     <div class="two">
       <label><span class="lbl">Home or away</span><select id="g-ha"><option value="H">Home</option><option value="A">Away</option></select></label>
-      <label><span class="lbl">Facility</span><select id="g-fac"><option value="">None</option><option>HS gym</option><option>Baseball/softball field</option></select></label>
+      <label><span class="lbl">Facility</span><select id="g-fac"><option value="">None</option><option>HS gym</option><option>School field</option><option>Park field</option></select></label>
     </div>
     <label><span class="lbl">Opponent or event</span><input type="text" id="g-opp" required></label>
     <label id="departWrap"><span class="lbl">Bus departs</span><input type="text" id="g-depart" placeholder="e.g. 4:15 PM"></label>
@@ -287,7 +292,8 @@ function savePref(){ try{ localStorage.setItem("sandovalSched",JSON.stringify({v
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function mins(t){ const m=String(t||"").match(/(\d{1,2}):(\d{2})\s*([AP])M/i); if(!m)return 9999; let h=+m[1]%12; if(m[3].toUpperCase()==="P")h+=12; return h*60+ +m[2]; }
 function sortGames(a,b){ return a.date<b.date?-1:a.date>b.date?1:(mins(a.time)-mins(b.time))||String(a.team).localeCompare(b.team); }
-function colorFor(g){ return g.facility==="HS gym"?"var(--gym)":g.facility==="Baseball/softball field"?"var(--field)":g.ha==="A"?"var(--away)":"var(--muted)"; }
+const FAC={"HS gym":{c:"gym",l:"HS gym"},"School field":{c:"field",l:"School field"},"Park field":{c:"park",l:"Park field"}};
+function colorFor(g){ const f=FAC[g.facility]; return f?"var(--"+f.c+")":g.ha==="A"?"var(--away)":"var(--muted)"; }
 function fmtDate(s){ const d=new Date(s+"T12:00:00"); return DN[d.getDay()]+" "+(d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(2); }
 function vs(g){ return (g.ha==="A"?"@ ":"vs ")+g.opp; }
 let tt; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("on"),2600); }
@@ -318,10 +324,10 @@ function renderCal(){
   for(let i=0;i<start;i++)h+=`<div class="day out"></div>`;
   for(let d=1;d<=days;d++){
     const key=y+"-"+pad(m+1)+"-"+pad(d), all=(byDay[key]||[]).slice().sort(sortGames);
-    const gym=all.some(g=>g.facility==="HS gym"), fld=all.some(g=>g.facility==="Baseball/softball field");
+    const used=Object.keys(FAC).filter(k=>all.some(g=>g.facility===k)&&(fac==="all"||fac===k));
     const shown=all.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team));
     h+=`<div class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canEdit?`<button class="add" data-add="${key}" aria-label="Add game on ${MN[m]} ${d}">+</button>`:""}</div>`+
-      `<div class="fac">${gym&&(fac==="all"||fac==="HS gym")?'<span class="flag gym">HS gym</span>':""}${fld&&(fac==="all"||fac==="Baseball/softball field")?'<span class="flag field">Field</span>':""}</div>`+
+      `<div class="fac">${used.map(k=>`<span class="flag ${FAC[k].c}">${FAC[k].l}</span>`).join("")}</div>`+
       shown.map(g=>`<button class="ev${g.tent?" tent":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}"><b>${esc(g.team)}</b> ${esc(vs(g))}<span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}</span></button>`).join("")+
       `</div>`;
   }
@@ -333,7 +339,7 @@ function renderList(){
   const list=games.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team)).sort(sortGames);
   if(!list.length){ $("rows").innerHTML=`<tr><td colspan="7"><div class="empty"><b>No games this month</b>${games.length?"Change the filters to see more.":"Use the arrows to move to another month."}</div></td></tr>`; return; }
   $("rows").innerHTML=list.map(g=>{
-    const fc=g.facility==="HS gym"?"gym":g.facility?"field":"";
+    const fc=FAC[g.facility]?FAC[g.facility].c:"";
     return `<tr data-id="${esc(g.id)}"><td class="d">${fmtDate(g.date)}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td>${esc(g.team)}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td>${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
   }).join("");
 }
@@ -534,7 +540,7 @@ $("i-file").onchange=async()=>{
     const fields={};
     if(c.time>=0&&r[c.time].trim())fields.time=r[c.time].trim();
     if(c.ha>=0&&r[c.ha].trim())fields.ha=/^a/i.test(r[c.ha].trim())?"A":"H";
-    if(c.fac>=0&&r[c.fac].trim())fields.facility=/gym/i.test(r[c.fac])?"HS gym":/field|base|soft/i.test(r[c.fac])?"Baseball/softball field":"";
+    if(c.fac>=0&&r[c.fac].trim())fields.facility=/gym/i.test(r[c.fac])?"HS gym":/park/i.test(r[c.fac])?"Park field":/school/i.test(r[c.fac])?"School field":/field|base|soft/i.test(r[c.fac])?"School field":"";
     if(c.depart>=0&&r[c.depart].trim())fields.depart=r[c.depart].trim();
     if(c.tent>=0&&r[c.tent].trim())fields.tent=/^(y|yes|true|1)$/i.test(r[c.tent].trim());
     items.push({date:d,team:r[c.team].trim(),opp:r[c.opp].trim(),fields}); });
@@ -614,7 +620,7 @@ $("m-preview").onclick=async()=>{
     mplan=list.map(g=>{
       const ha=g.ha==="A"?"H":"A";
       const nd=addDays(g.date,364);
-      const fac=ha==="H"?(/baseball|softball/i.test(team)?"Baseball/softball field":"HS gym"):"";
+      const fac=ha==="H"?(/baseball|softball/i.test(team)?"School field":"HS gym"):"";
       return {src:g,dup:have.has(nd+"|"+g.opp.toLowerCase()),on:!SKIP.test(g.opp),game:{date:nd,time:g.time||"",team,ha,facility:fac,opp:g.opp,depart:"",tent:false}};
     });
     if(!mplan.length){ $("m-list").innerHTML=`<p class="muted">No ${esc(team)} games in the ${y}–${String(y+1).slice(2)} season.</p>`; $("m-go").disabled=true; return; }
@@ -653,6 +659,8 @@ async function fixNames(){
     const old=Object.keys(NAME_FIX);
     const any=await gamesCol().where("team","in",old).limit(1).get();
     if(!any.empty){ let n=0; for(const o of old){ n+=await renameTeam(o,NAME_FIX[o]); } if(n)toast("Updated team names on "+n+" games"); }
+    const oldFac=await gamesCol().where("facility","==","Baseball/softball field").get();
+    if(!oldFac.empty){ for(let i=0;i<oldFac.docs.length;i+=400){ const bt=fdb.batch(); oldFac.docs.slice(i,i+400).forEach(d=>bt.update(d.ref,{facility:"School field"})); await bt.commit(); } toast("Moved "+oldFac.size+" games to School field"); }
     const jv=await gamesCol().where("team","==","Boys JV").get();
     if(!jv.empty){ const bt=fdb.batch(); jv.docs.forEach(d=>bt.delete(d.ref)); await bt.commit(); }
     const allT=await gamesCol().where("team","==","All Teams").get();
