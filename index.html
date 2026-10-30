@@ -81,6 +81,10 @@ select,input[type=text],input[type=date],input[type=time]{background:var(--surfa
 .ev .t{display:block;color:var(--muted);font-size:11.5px}
 .ev.tent{border-style:dashed;border-left-style:solid}
 .ev.dim{opacity:.35}
+.cx{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.06em;border:1.5px solid currentColor;border-radius:3px;padding:0 4px;margin-right:4px;text-decoration:none!important;color:var(--ink)}
+.ev.cancel{background:repeating-linear-gradient(135deg,var(--surface) 0 6px,var(--bg) 6px 12px);border-left-style:dotted}
+.ev.cancel .who{text-decoration:line-through;opacity:.75}
+tr.cancel td.strike{text-decoration:line-through;opacity:.7}
 .list{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow-x:auto}
 table{border-collapse:collapse;width:100%;min-width:760px}
 th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -224,6 +228,7 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <label><span class="lbl">Opponent or event</span><input type="text" id="g-opp" required></label>
     <label id="departWrap"><span class="lbl">Bus departs</span><input type="text" id="g-depart" placeholder="e.g. 4:15 PM"></label>
     <label class="chk"><input type="checkbox" id="g-tent"> Date may change</label>
+    <label class="chk"><input type="checkbox" id="g-cancel"> Cancelled (game stays on the schedule and still gets mirrored)</label>
     <p class="err" id="ferr"></p>
     <div class="row">
       <button class="btn primary" type="submit" id="saveBtn">Save</button>
@@ -344,11 +349,11 @@ function renderCal(){
   for(let i=0;i<start;i++)h+=`<div class="day out"></div>`;
   for(let d=1;d<=days;d++){
     const key=y+"-"+pad(m+1)+"-"+pad(d), all=(byDay[key]||[]).slice().sort(sortGames);
-    const used=Object.keys(FAC).filter(k=>all.some(g=>g.facility===k)&&(fac==="all"||fac===k));
+    const used=Object.keys(FAC).filter(k=>all.some(g=>g.facility===k&&!g.cancelled)&&(fac==="all"||fac===k));
     const shown=all.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team));
     h+=`<div class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canEdit?`<button class="add" data-add="${key}" aria-label="Add game on ${MN[m]} ${d}">+</button>`:""}</div>`+
       `<div class="fac">${used.map(k=>`<span class="flag ${FAC[k].c}">${FAC[k].l}</span>`).join("")}</div>`+
-      shown.map(g=>`<button class="ev${g.tent?" tent":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}"><b>${esc(g.team)}</b> ${esc(vs(g))}<span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}</span></button>`).join("")+
+      shown.map(g=>`<button class="ev${g.tent?" tent":""}${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}">${g.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}</span></button>`).join("")+
       `</div>`;
   }
   const tail=(7-((start+days)%7))%7; for(let i=0;i<tail;i++)h+=`<div class="day out"></div>`;
@@ -360,7 +365,7 @@ function renderList(){
   if(!list.length){ $("rows").innerHTML=`<tr><td colspan="7"><div class="empty"><b>No games this month</b>${games.length?"Change the filters to see more.":"Use the arrows to move to another month."}</div></td></tr>`; return; }
   $("rows").innerHTML=list.map(g=>{
     const fc=FAC[g.facility]?FAC[g.facility].c:"";
-    return `<tr data-id="${esc(g.id)}"><td class="d">${fmtDate(g.date)}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td>${esc(g.team)}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td>${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
+    return `<tr data-id="${esc(g.id)}"${g.cancelled?' class="cancel"':""}><td class="d">${fmtDate(g.date)}${g.cancelled?'<div><span class="cx">CANCELLED</span></div>':""}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td class="strike">${esc(g.team)}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td class="strike">${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
   }).join("");
 }
 
@@ -375,11 +380,11 @@ function openSheet(g,date){
     $("sheetTitle").textContent=g?"Edit game":"Add game";
     $("g-date").value=g?g.date:(date||todayIso); $("g-time").value=g?g.time||"":"";
     $("g-team").value=g?g.team:""; $("g-ha").value=g?g.ha:"H"; $("g-fac").value=g?g.facility||"":"";
-    $("g-opp").value=g?g.opp:""; $("g-depart").value=g?g.depart||"":""; $("g-tent").checked=!!(g&&g.tent);
+    $("g-opp").value=g?g.opp:""; $("g-depart").value=g?g.depart||"":""; $("g-tent").checked=!!(g&&g.tent); $("g-cancel").checked=!!(g&&g.cancelled);
     $("delBtn").hidden=!g; syncDepart(); $("g-date").focus();
   } else {
     $("form").hidden=true; $("ro").hidden=false; $("sheetTitle").textContent=g.team;
-    $("ro").innerHTML=`<dl class="ro"><dt>Date</dt><dd>${fmtDate(g.date)}${g.tent?" (may change)":""}</dd><dt>Time</dt><dd>${esc(g.time||"TBA")}</dd><dt>Opponent or event</dt><dd>${esc(vs(g))}</dd>${g.facility?`<dt>Facility</dt><dd>${esc(g.facility)}</dd>`:""}${g.ha==="A"?`<dt>Bus departs</dt><dd>${esc(g.depart||"Not set")}</dd>`:""}</dl><div class="row" style="margin-top:16px"><button class="btn" id="roClose">Close</button></div>`;
+    $("ro").innerHTML=`${g.cancelled?'<p style="margin:0 0 6px"><span class="cx" style="font-size:13px">CANCELLED</span> This game will not be played.</p>':""}<dl class="ro"><dt>Date</dt><dd>${fmtDate(g.date)}${g.tent?" (may change)":""}</dd><dt>Time</dt><dd>${esc(g.time||"TBA")}</dd><dt>Opponent or event</dt><dd>${esc(vs(g))}</dd>${g.facility?`<dt>Facility</dt><dd>${esc(g.facility)}</dd>`:""}${g.ha==="A"?`<dt>Bus departs</dt><dd>${esc(g.depart||"Not set")}</dd>`:""}</dl><div class="row" style="margin-top:16px"><button class="btn" id="roClose">Close</button></div>`;
     $("roClose").onclick=closeSheet; $("roClose").focus();
   }
 }
@@ -504,7 +509,7 @@ $("delBtn").addEventListener("click",async()=>{
 $("form").addEventListener("submit",async e=>{
   e.preventDefault();
   const g={date:$("g-date").value,time:$("g-time").value.trim(),team:$("g-team").value.trim(),ha:$("g-ha").value,
-    facility:$("g-fac").value,opp:$("g-opp").value.trim(),depart:$("g-ha").value==="A"?$("g-depart").value.trim():"",tent:$("g-tent").checked};
+    facility:$("g-fac").value,opp:$("g-opp").value.trim(),depart:$("g-ha").value==="A"?$("g-depart").value.trim():"",tent:$("g-tent").checked,cancelled:$("g-cancel").checked};
   if(!g.date||!g.team||!g.opp){ $("ferr").textContent="Date, team, and opponent are required."; return; }
   $("saveBtn").disabled=true;
   try{
@@ -538,9 +543,9 @@ $("x-go").onclick=async()=>{
     let rows="", lastM="";
     list.forEach(g=>{
       const mk=g.date.slice(0,7); if(mk!==lastM){ lastM=mk; const d=new Date(g.date+"T12:00:00"); rows+=`<tr class="pm"><td colspan="${cols.length}">${MN[d.getMonth()]} ${d.getFullYear()}</td></tr>`; }
-      const dt=esc(fmtDate(g.date))+(g.tent?" (may change)":"");
+      const dt=esc(fmtDate(g.date))+(g.tent?" (may change)":"")+(g.cancelled?' <b class="nb">CANCELLED</b>':"");
       rows+= type==="travel"
-        ? `<tr><td>${dt}</td><td>${esc(g.team)}</td><td>${esc(g.opp)}</td><td>${esc(g.time||"TBA")}</td><td>${g.depart?esc(g.depart):'<span class="nb">Not set</span>'}</td></tr>`
+        ? `<tr><td>${dt}</td><td>${esc(g.team)}</td><td>${esc(g.opp)}</td><td>${esc(g.time||"TBA")}</td><td>${g.cancelled?"—":g.depart?esc(g.depart):'<span class="nb">Not set</span>'}</td></tr>`
         : `<tr><td>${dt}</td><td>${esc(g.time||"TBA")}</td><td>${esc(g.team)}</td><td>${g.ha==="A"?"Away":"Home"}</td><td>${esc(g.opp)}</td><td>${esc(g.facility||"")}</td><td>${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
     });
     if(!list.length)rows=`<tr><td colspan="${cols.length}">No games in this range.</td></tr>`;
@@ -572,7 +577,7 @@ $("i-file").onchange=async()=>{
   const rows=parseCSV(await f.text()); if(rows.length<2){ $("ierr").textContent="That file has no rows."; return; }
   const H=rows[0].map(h=>h.trim().toLowerCase().replace(/[^a-z]/g,""));
   const ix=n=>H.indexOf(n);
-  const c={date:ix("date"),team:ix("team"),opp:ix("opponent"),time:ix("time"),ha:ix("homeaway"),fac:ix("facility"),depart:ix("busdeparts"),tent:ix("maychange")};
+  const c={date:ix("date"),team:ix("team"),opp:ix("opponent"),time:ix("time"),ha:ix("homeaway"),fac:ix("facility"),depart:ix("busdeparts"),tent:ix("maychange"),cx:ix("cancelled")};
   if(c.date<0||c.team<0||c.opp<0){ $("ierr").textContent="The file needs date, team, and opponent columns."; return; }
   const items=[], bad=[];
   rows.slice(1).forEach((r,i)=>{ const d=normDate(r[c.date]||""); if(!d||!(r[c.team]||"").trim()||!(r[c.opp]||"").trim()){bad.push("Row "+(i+2)+": missing or unreadable date, team, or opponent");return;}
@@ -582,6 +587,7 @@ $("i-file").onchange=async()=>{
     if(c.fac>=0&&r[c.fac].trim())fields.facility=/gym/i.test(r[c.fac])?"HS gym":/park/i.test(r[c.fac])?"Park field":/school/i.test(r[c.fac])?"School field":/field|base|soft/i.test(r[c.fac])?"School field":"";
     if(c.depart>=0&&r[c.depart].trim())fields.depart=r[c.depart].trim();
     if(c.tent>=0&&r[c.tent].trim())fields.tent=/^(y|yes|true|1)$/i.test(r[c.tent].trim());
+    if(c.cx>=0&&r[c.cx]&&r[c.cx].trim())fields.cancelled=/^(y|yes|true|1)$/i.test(r[c.cx].trim());
     items.push({date:d,team:r[c.team].trim(),opp:r[c.opp].trim(),fields}); });
   if(!items.length){ $("ierr").textContent="No usable rows in that file."; return; }
   const dates=items.map(x=>x.date).sort();
@@ -624,8 +630,8 @@ $("backupBtn").onclick=async()=>{
   try{
     const snap=await gamesCol().get();
     const list=snap.docs.map(d=>d.data()).sort(sortGames);
-    const lines=[["date","team","opponent","time","home_away","facility","bus_departs","may_change"].join(",")];
-    list.forEach(g=>lines.push([g.date,g.team,g.opp,g.time,g.ha==="A"?"Away":"Home",g.facility,g.depart,g.tent?"yes":"no"].map(csvCell).join(",")));
+    const lines=[["date","team","opponent","time","home_away","facility","bus_departs","may_change","cancelled"].join(",")];
+    list.forEach(g=>lines.push([g.date,g.team,g.opp,g.time,g.ha==="A"?"Away":"Home",g.facility,g.depart,g.tent?"yes":"no",g.cancelled?"yes":"no"].map(csvCell).join(",")));
     const blob=new Blob([lines.join("\n")+"\n"],{type:"text/csv"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="sandoval-schedule-backup-"+todayIso+".csv";
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
@@ -667,7 +673,7 @@ $("m-preview").onclick=async()=>{
     if(!mplan.length){ $("m-list").innerHTML=`<p class="muted">No ${esc(team)} games in the ${y}–${String(y+1).slice(2)} season.</p>`; $("m-go").disabled=true; return; }
     $("m-list").innerHTML=`<p class="small muted" style="margin-bottom:6px">Uncheck anything you don't want copied. Tournaments and events start unchecked.</p><div class="mlist">`+mplan.map((m,i)=>{
       const g=m.src;
-      return `<label class="mrow2${m.dup?" dup":""}"><input type="checkbox" data-i="${i}"${m.on&&!m.dup?" checked":""}${m.dup?" disabled":""}><span>${esc(fmtDate(g.date))} ${esc(vs(g))} <span class="arrow">→</span> <b>${esc(fmtDate(m.game.date))} ${esc(vs(m.game))}</b>${m.dup?"<small>Already on next season's schedule</small>":""}</span></label>`;
+      return `<label class="mrow2${m.dup?" dup":""}"><input type="checkbox" data-i="${i}"${m.on&&!m.dup?" checked":""}${m.dup?" disabled":""}><span>${esc(fmtDate(g.date))} ${esc(vs(g))} <span class="arrow">→</span> <b>${esc(fmtDate(m.game.date))} ${esc(vs(m.game))}</b>${m.dup?"<small>Already on next season's schedule</small>":""}${g.cancelled?"<small>Cancelled this season, so it's added as a regular game next season</small>":""}</span></label>`;
     }).join("")+`</div>`;
     $("m-list").querySelectorAll("input[data-i]").forEach(cb=>cb.onchange=()=>{ mplan[+cb.dataset.i].on=cb.checked; syncMirror(); });
     mplan.forEach(m=>{ if(m.dup)m.on=false; }); syncMirror();
@@ -749,7 +755,7 @@ $("dupBtn").onclick=async()=>{
     });
     if(!dplan.length){ $("d-list").innerHTML='<p class="muted"><b>No duplicates found.</b> No team has more than one game on the same day.</p>'; return; }
     $("d-list").innerHTML=dplan.map((grp,gi)=>`<div class="dgrp"><h4>${esc(fmtDate(grp.games[0].date))} · ${esc(grp.games[0].team)}<small>${grp.exact?"same opponent listed more than once":"different opponents, check whether both are real"}</small></h4>`+
-      grp.games.map((g,i)=>`<label class="drow${g.keep?"":" gone"}"><span class="kp"><input type="checkbox" data-g="${gi}" data-i="${i}"${g.keep?" checked":""}> Keep</span><span><b>${esc(vs(g))}</b> · ${esc(g.time||"TBA")}<small>${esc(g.facility||"No facility")}${g.ha==="A"?" · bus "+esc(g.depart||"not set"):""}</small></span></label>`).join("")+`</div>`).join("");
+      grp.games.map((g,i)=>`<label class="drow${g.keep?"":" gone"}"><span class="kp"><input type="checkbox" data-g="${gi}" data-i="${i}"${g.keep?" checked":""}> Keep</span><span><b>${esc(vs(g))}</b> · ${esc(g.time||"TBA")}<small>${g.cancelled?"CANCELLED · ":""}${esc(g.facility||"No facility")}${g.ha==="A"?" · bus "+esc(g.depart||"not set"):""}</small></span></label>`).join("")+`</div>`).join("");
     $("d-list").querySelectorAll("input[data-g]").forEach(cb=>cb.onchange=()=>{ const g=dplan[+cb.dataset.g].games[+cb.dataset.i]; g.keep=cb.checked; cb.closest(".drow").classList.toggle("gone",!cb.checked); syncDup(); });
     syncDup();
   }catch(e){ $("d-list").innerHTML=""; $("derr").textContent="Couldn't check the schedule. Try again."; }
