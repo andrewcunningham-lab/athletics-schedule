@@ -180,7 +180,7 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <label class="lbl" for="fTeam">Team</label>
     <select id="fTeam"><option value="">All teams</option></select>
     <span class="spacer"></span>
-    <button class="btn" id="exportBtn">Export PDF</button>
+    <button class="btn" id="exportBtn">Export</button>
     <button class="btn" id="fileBtn" hidden>Import file</button>
     <button class="btn" id="mirrorBtn" hidden>Mirror season</button>
     <button class="btn" id="backupBtn" hidden>Download backup</button>
@@ -240,15 +240,15 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
   <div id="ro" hidden></div>
 </aside>
 <aside class="sheet" id="expSheet" hidden role="dialog" aria-labelledby="expTitle">
-  <h3 id="expTitle">Export PDF</h3>
+  <h3 id="expTitle">Export</h3>
   <div class="form">
-    <label><span class="lbl">What to export</span><select id="x-type"><option value="full">Full schedule</option><option value="travel">Travel schedule (away games and bus times)</option></select></label>
-    <div class="two">
+    <label><span class="lbl">What to export</span><select id="x-type"><option value="full">Full schedule</option><option value="travel">Travel schedule (away games and bus times)</option><option value="ics">Calendar file (.ics) for Google, Outlook, or iPhone</option></select></label>
+    <div class="two" id="x-dates">
       <label><span class="lbl">From</span><input type="date" id="x-from"></label>
       <label><span class="lbl">To</span><input type="date" id="x-to"></label>
     </div>
     <label><span class="lbl">Team</span><select id="x-team"><option value="">All teams</option></select></label>
-    <p class="small muted">Your browser's print window opens. Choose <b>Save as PDF</b> as the destination.</p>
+    <p class="small muted" id="x-note">Your browser's print window opens. Choose <b>Save as PDF</b> as the destination.</p>
     <p class="err" id="xerr"></p>
     <div class="row"><button class="btn primary" id="x-go">Create PDF</button><button class="btn" id="x-cancel">Cancel</button></div>
   </div>
@@ -524,18 +524,20 @@ $("form").addEventListener("submit",async e=>{
 // ---- export PDF ----
 $("exportBtn").onclick=()=>{
   const [a,b]=monthRange(cur); const end=new Date(b+"T12:00:00"); end.setDate(end.getDate()-1);
-  $("x-from").value=a; $("x-to").value=iso(end); $("x-team").value=$("fTeam").value; $("xerr").textContent="";
+  $("x-from").value=a; $("x-to").value=iso(end); $("x-team").value=$("fTeam").value; $("xerr").textContent=""; syncExport();
   showSheet("expSheet");
 };
 $("x-go").onclick=async()=>{
   const type=$("x-type").value, from=$("x-from").value, to=$("x-to").value, team=$("x-team").value;
-  if(!from||!to||to<from){ $("xerr").textContent="Pick a From date and a To date after it."; return; }
+  if(type!=="ics"&&(!from||!to||to<from)){ $("xerr").textContent="Pick a From date and a To date after it."; return; }
+  if(type==="ics"&&!team){ $("xerr").textContent="Pick a team. The calendar file includes that team's whole schedule."; return; }
   if(!fdb){ $("xerr").textContent="The schedule isn't connected."; return; }
   $("x-go").disabled=true; $("xerr").textContent="";
   try{
-    const snap=await gamesCol().where("date",">=",from).where("date","<=",to).get();
-    let list=snap.docs.map(d=>d.data()).filter(g=>!team||g.team===team);
+    const snap=type==="ics"?await gamesCol().where("team","==",team).get():await gamesCol().where("date",">=",from).where("date","<=",to).get();
+    let list=snap.docs.map(d=>Object.assign({id:d.id},d.data())).filter(g=>!team||g.team===team);
     if(type==="travel")list=list.filter(g=>g.ha==="A");
+    if(type==="ics"){ list.sort(sortGames); downloadIcs(list,team); closeSheet(); $("x-go").disabled=false; return; }
     list.sort(sortGames);
     const title=type==="travel"?"Travel Schedule":"Athletics Schedule";
     const range=fmtDate(from)+" – "+fmtDate(to)+(team?" · "+team:"");
@@ -555,6 +557,38 @@ $("x-go").onclick=async()=>{
   }catch(e){ $("xerr").textContent="Couldn't build the PDF. Check your connection and try again."; }
   $("x-go").disabled=false;
 };
+
+function syncExport(){ const ics=$("x-type").value==="ics"; $("x-dates").hidden=ics;
+  const allOpt=$("x-team").querySelector('option[value=""]'); if(allOpt){ allOpt.textContent=ics?"Pick a team":"All teams"; }
+  $("x-go").textContent=ics?"Download calendar file":"Create PDF";
+  $("x-note").innerHTML=ics?"Downloads a .ics file. Open it, or import it into Google Calendar (Settings, then Import), Outlook, or the iPhone Calendar app. It has every game on that team's schedule. Games with a time are 2 hours long; TBA games are all-day.":"Your browser's print window opens. Choose <b>Save as PDF</b> as the destination."; }
+$("x-type").addEventListener("change",syncExport);
+function icsEsc(t){ return String(t||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n"); }
+function icsFold(line){ let out="", l=line; while(l.length>74){ out+=l.slice(0,74)+"\r\n "; l=l.slice(74); } return out+l; }
+function downloadIcs(list,team){
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
+  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Sandoval CUSD 501//Athletics Schedule//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:Sandoval "+team,"X-WR-TIMEZONE:America/Chicago",
+    "BEGIN:VTIMEZONE","TZID:America/Chicago","BEGIN:DAYLIGHT","TZOFFSETFROM:-0600","TZOFFSETTO:-0500","TZNAME:CDT","DTSTART:19700308T020000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU","END:DAYLIGHT","BEGIN:STANDARD","TZOFFSETFROM:-0500","TZOFFSETTO:-0600","TZNAME:CST","DTSTART:19701101T020000","RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU","END:STANDARD","END:VTIMEZONE"];
+  list.forEach(g=>{
+    const d=g.date.replace(/-/g,""), m=mins(g.time);
+    const title=(g.cancelled?"CANCELLED: ":"")+g.team+" "+vs(g);
+    const desc=[g.time&&g.time!=="TBA"?"Time: "+g.time:"Time: TBA", g.ha==="A"?"Bus departs: "+(g.depart||"not set"):"", g.tent?"Date may change":""].filter(Boolean).join("\n");
+    L.push("BEGIN:VEVENT","UID:"+g.id+"@sandoval-athletics","DTSTAMP:"+stamp);
+    if(m<9999){ const hh=Math.floor(m/60), mm=m%60, e=m+120; L.push("DTSTART;TZID=America/Chicago:"+d+"T"+pad(hh)+pad(mm)+"00","DTEND;TZID=America/Chicago:"+d+"T"+pad(Math.floor(e/60)%24)+pad(e%60)+"00"); }
+    else { const nd=new Date(g.date+"T12:00:00"); nd.setDate(nd.getDate()+1); L.push("DTSTART;VALUE=DATE:"+d,"DTEND;VALUE=DATE:"+iso(nd).replace(/-/g,"")); }
+    L.push(icsFold("SUMMARY:"+icsEsc(title)));
+    if(g.facility||g.ha==="A")L.push(icsFold("LOCATION:"+icsEsc(g.facility?"Sandoval "+g.facility:"Away at "+g.opp)));
+    if(desc)L.push(icsFold("DESCRIPTION:"+icsEsc(desc)));
+    if(g.cancelled)L.push("STATUS:CANCELLED");
+    L.push("END:VEVENT");
+  });
+  L.push("END:VCALENDAR");
+  const blob=new Blob([L.join("\r\n")+"\r\n"],{type:"text/calendar"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="sandoval-"+team.toLowerCase().replace(/[^a-z0-9]+/g,"-")+".ics";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  toast(list.length+" games saved to a calendar file");
+}
 
 // ---- import CSV ----
 let plan=null;
