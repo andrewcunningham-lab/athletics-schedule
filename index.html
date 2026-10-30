@@ -108,6 +108,35 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--black);color:#fff;padding:9px 16px;border-radius:8px;z-index:40;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px)}
 .toast.on{opacity:1}
 @media (max-width:640px){.form .two{grid-template-columns:1fr}.key{margin-left:0}}
+.muted{color:var(--muted);margin:0}
+.ipv{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px}
+.ipv ul{margin:6px 0 0;padding-left:18px;max-height:220px;overflow:auto}
+.mlist{border:1px solid var(--line);border-radius:8px;max-height:46vh;overflow:auto}
+.mrow2{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border-bottom:1px solid var(--line);font-size:13.5px;line-height:1.3}
+.mrow2:last-child{border-bottom:0}
+.mrow2 input{margin-top:3px}
+.mrow2 .arrow{color:var(--muted)}
+.mrow2.dup{opacity:.5}
+.mrow2 small{display:block;color:var(--muted)}
+.ipv .ok{color:var(--field);font-weight:700}.ipv .bad{color:var(--scarlet);font-weight:700}
+#print{display:none}
+@page{size:letter;margin:0.5in}
+@media print{
+  body{background:#fff!important;color:#000!important;padding:0!important}
+  body>*:not(#print){display:none!important}
+  #print{display:block!important;font-family:var(--body);color:#000}
+  .ph{display:flex;align-items:center;gap:14px;border-bottom:3px solid #c8102e;padding-bottom:8px;margin-bottom:10px}
+  .ph img{width:56px;height:auto}
+  .ph h1{margin:0;font-family:var(--display);font-size:24px;text-transform:uppercase;letter-spacing:.02em}
+  .ph p{margin:2px 0 0;font-size:12px;color:#444}
+  .pt{width:100%;border-collapse:collapse;font-size:11.5px;min-width:0}
+  .pt th{background:#121112!important;color:#fff!important;font-family:var(--display);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:5px 7px;text-align:left;position:static}
+  .pt td{padding:5px 7px;border-bottom:1px solid #bbb;vertical-align:top}
+  .pt tr{break-inside:avoid}
+  .pt .pm td{background:#eee!important;font-family:var(--display);font-size:13px;font-weight:600;padding-top:8px}
+  .pt .nb{color:#c8102e;font-weight:700}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -133,25 +162,26 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <label class="lbl" for="fTeam">Team</label>
     <select id="fTeam"><option value="">All teams</option></select>
     <span class="spacer"></span>
+    <button class="btn" id="exportBtn">Export PDF</button>
+    <button class="btn" id="fileBtn" hidden>Import file</button>
+    <button class="btn" id="mirrorBtn" hidden>Mirror season</button>
+    <button class="btn" id="backupBtn" hidden>Download backup</button>
     <button class="btn" id="importBtn" hidden>Load starter basketball schedule</button>
     <button class="btn primary" id="addBtn" hidden>+ Add game</button>
   </div>
 
-  <div id="calView">
     <div class="mhead">
       <button class="btn" id="prev" aria-label="Previous month">‹</button>
       <h2 id="mtitle"></h2>
       <button class="btn" id="next" aria-label="Next month">›</button>
       <button class="btn" id="todayBtn">Today</button>
-      <div class="key"><span><i style="background:var(--gym)"></i>HS gym booked</span><span><i style="background:var(--field)"></i>Field booked</span><span><i style="border:1px dashed var(--muted)"></i>Date may change</span></div>
+      <div class="key" id="calKey"><span><i style="background:var(--gym)"></i>HS gym booked</span><span><i style="background:var(--field)"></i>Field booked</span><span><i style="border:1px dashed var(--muted)"></i>Date may change</span></div>
     </div>
+  <div id="calView">
     <div class="gridwrap"><div class="grid" id="grid"></div></div>
   </div>
 
   <div id="listView" hidden>
-    <div class="row" style="display:flex;gap:10px;align-items:center;margin:4px 0 10px">
-      <label class="small"><input type="checkbox" id="upcoming" checked> Upcoming only</label>
-    </div>
     <div class="list"><table>
       <thead><tr><th>Date</th><th>Time</th><th>Team</th><th></th><th>Opponent / event</th><th>Facility</th><th>Bus departs</th></tr></thead>
       <tbody id="rows"></tbody>
@@ -187,6 +217,46 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
   </form>
   <div id="ro" hidden></div>
 </aside>
+<aside class="sheet" id="expSheet" hidden role="dialog" aria-labelledby="expTitle">
+  <h3 id="expTitle">Export PDF</h3>
+  <div class="form">
+    <label><span class="lbl">What to export</span><select id="x-type"><option value="full">Full schedule</option><option value="travel">Travel schedule (away games and bus times)</option></select></label>
+    <div class="two">
+      <label><span class="lbl">From</span><input type="date" id="x-from"></label>
+      <label><span class="lbl">To</span><input type="date" id="x-to"></label>
+    </div>
+    <label><span class="lbl">Team</span><select id="x-team"><option value="">All teams</option></select></label>
+    <p class="small muted">Your browser's print window opens. Choose <b>Save as PDF</b> as the destination.</p>
+    <p class="err" id="xerr"></p>
+    <div class="row"><button class="btn primary" id="x-go">Create PDF</button><button class="btn" id="x-cancel">Cancel</button></div>
+  </div>
+</aside>
+<aside class="sheet" id="impSheet" hidden role="dialog" aria-labelledby="impTitle">
+  <h3 id="impTitle">Import file</h3>
+  <div class="form">
+    <p class="small muted">Load a CSV file from Claude. Each row is matched to a game by date, team, and opponent. Matching games get the values in the file, and rows that don't match can be added as new games.</p>
+    <label><span class="lbl">CSV file</span><input type="file" id="i-file" accept=".csv,text/csv"></label>
+    <div id="i-preview"></div>
+    <label class="chk" id="i-newWrap" hidden><input type="checkbox" id="i-new"> Add rows that don't match as new games</label>
+    <p class="err" id="ierr"></p>
+    <div class="row"><button class="btn primary" id="i-go" disabled>Apply</button><button class="btn" id="i-cancel">Cancel</button></div>
+  </div>
+</aside>
+<aside class="sheet" id="mirSheet" hidden role="dialog" aria-labelledby="mirTitle">
+  <h3 id="mirTitle">Mirror a season</h3>
+  <div class="form">
+    <p class="small muted">Copies a team's season to the next year: home games become away, away games become home, on the same weekday 52 weeks later. Game times carry over. Bus times start blank.</p>
+    <div class="two">
+      <label><span class="lbl">Team</span><select id="m-team"></select></label>
+      <label><span class="lbl">Season to copy</span><select id="m-season"></select></label>
+    </div>
+    <div class="row"><button class="btn" id="m-preview">Preview</button></div>
+    <div id="m-list"></div>
+    <p class="err" id="merr"></p>
+    <div class="row"><button class="btn primary" id="m-go" disabled>Add to next season</button><button class="btn" id="m-cancel">Cancel</button></div>
+  </div>
+</aside>
+<div id="print" aria-hidden="true"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -197,7 +267,9 @@ const DN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const todayIso=iso(new Date());
-let games=[], db=null, canEdit=false, view="cal", editingId=null, loaded=false;
+const EDITOR_EMAIL="ad@sandoval501.org";
+const LOGO=document.querySelector(".brand img").src;
+let games=[], teamList=[], canEdit=false, view="cal", editingId=null, loaded=false, metaExists=null;
 let cur=new Date(); cur.setDate(1);
 try{ const s=JSON.parse(localStorage.getItem("sandovalSched")||"{}"); if(s.view)view=s.view; if(s.fac)$("fFac").value=s.fac; if(s.team!==undefined)window.__team=s.team; }catch(e){}
 function savePref(){ try{ localStorage.setItem("sandovalSched",JSON.stringify({view,fac:$("fFac").value,team:$("fTeam").value})); }catch(e){} }
@@ -207,29 +279,27 @@ function sortGames(a,b){ return a.date<b.date?-1:a.date>b.date?1:(mins(a.time)-m
 function colorFor(g){ return g.facility==="HS gym"?"var(--gym)":g.facility==="Baseball/softball field"?"var(--field)":g.ha==="A"?"var(--away)":"var(--muted)"; }
 function fmtDate(s){ const d=new Date(s+"T12:00:00"); return DN[d.getDay()]+" "+(d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(2); }
 function vs(g){ return (g.ha==="A"?"@ ":"vs ")+g.opp; }
-let tt; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("on"),2400); }
+let tt; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("on"),2600); }
 function status(m){ const s=$("status"); s.hidden=!m; s.textContent=m||""; }
+function monthRange(d){ const a=new Date(d.getFullYear(),d.getMonth(),1), b=new Date(d.getFullYear(),d.getMonth()+1,1); return [iso(a),iso(b)]; }
 
-function filtered(){
-  const fac=$("fFac").value, team=$("fTeam").value;
-  return games.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team));
-}
-function teams(){ return [...new Set(games.map(g=>g.team).filter(Boolean))].sort(); }
 function fillTeams(){
   const sel=$("fTeam"), keep=sel.value||window.__team||"";
-  sel.innerHTML='<option value="">All teams</option>'+teams().map(t=>`<option${t===keep?" selected":""}>${esc(t)}</option>`).join("");
+  const list=[...new Set(teamList.concat(games.map(g=>g.team)).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">All teams</option>'+list.map(t=>`<option${t===keep?" selected":""}>${esc(t)}</option>`).join("");
   window.__team=undefined;
-  $("teamList").innerHTML=teams().map(t=>`<option value="${esc(t)}">`).join("");
+  $("teamList").innerHTML=list.map(t=>`<option value="${esc(t)}">`).join("");
+  $("x-team").innerHTML='<option value="">All teams</option>'+list.map(t=>`<option>${esc(t)}</option>`).join("");
 }
 
 function render(){
   $("v-cal").setAttribute("aria-pressed",view==="cal"); $("v-list").setAttribute("aria-pressed",view==="list");
-  $("calView").hidden=view!=="cal"; $("listView").hidden=view!=="list";
+  $("calView").hidden=view!=="cal"; $("listView").hidden=view!=="list"; $("calKey").hidden=view!=="cal";
+  $("mtitle").textContent=MN[cur.getMonth()]+" "+cur.getFullYear();
   view==="cal"?renderCal():renderList();
 }
 function renderCal(){
   const y=cur.getFullYear(), m=cur.getMonth();
-  $("mtitle").textContent=MN[m]+" "+y;
   const fac=$("fFac").value, team=$("fTeam").value;
   const byDay={}; games.forEach(g=>{(byDay[g.date]=byDay[g.date]||[]).push(g)});
   let h=DN.map(d=>`<div class="dow">${d}</div>`).join("");
@@ -248,22 +318,21 @@ function renderCal(){
   $("grid").innerHTML=h;
 }
 function renderList(){
-  const up=$("upcoming").checked;
-  const list=filtered().filter(g=>!up||g.date>=todayIso).sort(sortGames);
-  if(!list.length){ $("rows").innerHTML=`<tr><td colspan="7"><div class="empty"><b>${games.length?"No games match":"No games yet"}</b>${games.length?"Change the filters or turn off Upcoming only.":canEdit?"Click + Add game to enter the first one.":"Check back once the schedule is posted."}</div></td></tr>`; return; }
-  let lastM="", h="";
-  list.forEach(g=>{
-    const mk=g.date.slice(0,7); if(mk!==lastM){ lastM=mk; const d=new Date(g.date+"T12:00:00"); h+=`<tr class="mrow"><td colspan="7">${MN[d.getMonth()]} ${d.getFullYear()}</td></tr>`; }
+  const fac=$("fFac").value, team=$("fTeam").value;
+  const list=games.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team)).sort(sortGames);
+  if(!list.length){ $("rows").innerHTML=`<tr><td colspan="7"><div class="empty"><b>No games this month</b>${games.length?"Change the filters to see more.":"Use the arrows to move to another month."}</div></td></tr>`; return; }
+  $("rows").innerHTML=list.map(g=>{
     const fc=g.facility==="HS gym"?"gym":g.facility?"field":"";
-    h+=`<tr data-id="${esc(g.id)}"><td class="d">${fmtDate(g.date)}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td>${esc(g.team)}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td>${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
-  });
-  $("rows").innerHTML=h;
+    return `<tr data-id="${esc(g.id)}"><td class="d">${fmtDate(g.date)}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td>${esc(g.team)}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td>${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
+  }).join("");
 }
 
-// ---- sheet ----
+// ---- sheets ----
+const SHEETS=["sheet","expSheet","impSheet","mirSheet"];
+function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
+function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; }
 function openSheet(g,date){
-  editingId=g?g.id:null;
-  $("scrim").hidden=false; $("sheet").hidden=false; $("ferr").textContent="";
+  editingId=g?g.id:null; showSheet("sheet"); $("ferr").textContent="";
   if(canEdit){
     $("form").hidden=false; $("ro").hidden=true;
     $("sheetTitle").textContent=g?"Edit game":"Add game";
@@ -277,52 +346,32 @@ function openSheet(g,date){
     $("roClose").onclick=closeSheet; $("roClose").focus();
   }
 }
-function closeSheet(){ $("scrim").hidden=true; $("sheet").hidden=true; editingId=null; }
 function syncDepart(){ $("departWrap").hidden=$("g-ha").value!=="A"; }
 $("g-ha").addEventListener("change",()=>{ syncDepart(); if($("g-ha").value==="A"&&$("g-fac").value)$("g-fac").value=""; });
 $("scrim").addEventListener("click",closeSheet);
 $("cancelBtn").addEventListener("click",closeSheet);
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("sheet").hidden)closeSheet(); });
-let delArmed=false;
-$("delBtn").addEventListener("click",async()=>{
-  if(!editingId)return;
-  if(!delArmed){ delArmed=true; $("delBtn").textContent="Click again to delete"; setTimeout(()=>{delArmed=false;$("delBtn").textContent="Delete";},2500); return; }
-  delArmed=false; $("delBtn").textContent="Delete";
-  try{ await db.doc("games/"+editingId).delete(); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
-});
-$("form").addEventListener("submit",async e=>{
-  e.preventDefault();
-  const g={date:$("g-date").value,time:$("g-time").value.trim(),team:$("g-team").value.trim(),ha:$("g-ha").value,
-    facility:$("g-fac").value,opp:$("g-opp").value.trim(),depart:$("g-ha").value==="A"?$("g-depart").value.trim():"",tent:$("g-tent").checked};
-  if(!g.date||!g.team||!g.opp){ $("ferr").textContent="Date, team, and opponent are required."; return; }
-  $("saveBtn").disabled=true;
-  try{
-    const ref=editingId?db.doc("games/"+editingId):db.collection("games").doc();
-    await ref.set(g); toast(editingId?"Game saved":"Game added"); closeSheet();
-  }catch(err){ $("ferr").textContent=err&&(err.code==="invalid_argument"||err.code==="permission-denied")?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
-  $("saveBtn").disabled=false;
-});
+$("x-cancel").addEventListener("click",closeSheet);
+$("i-cancel").addEventListener("click",closeSheet);
+$("m-cancel").addEventListener("click",closeSheet);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("scrim").hidden)closeSheet(); });
 
 // ---- events ----
 $("v-cal").onclick=()=>{view="cal";savePref();render();};
 $("v-list").onclick=()=>{view="list";savePref();render();};
 $("fFac").onchange=()=>{savePref();render();};
 $("fTeam").onchange=()=>{savePref();render();};
-$("upcoming").onchange=render;
-$("prev").onclick=()=>{cur.setMonth(cur.getMonth()-1);render();};
-$("next").onclick=()=>{cur.setMonth(cur.getMonth()+1);render();};
-$("todayBtn").onclick=()=>{cur=new Date();cur.setDate(1);render();};
+$("prev").onclick=()=>{cur.setMonth(cur.getMonth()-1);watchMonth();render();};
+$("next").onclick=()=>{cur.setMonth(cur.getMonth()+1);watchMonth();render();};
+$("todayBtn").onclick=()=>{cur=new Date();cur.setDate(1);watchMonth();render();};
 $("addBtn").onclick=()=>openSheet(null);
 $("grid").addEventListener("click",e=>{
   const a=e.target.closest("[data-add]"); if(a){openSheet(null,a.dataset.add);return;}
   const b=e.target.closest(".ev"); if(b){const g=games.find(x=>x.id===b.dataset.id); if(g)openSheet(g);}
 });
 $("rows").addEventListener("click",e=>{ const tr=e.target.closest("tr[data-id]"); if(!tr)return; const g=games.find(x=>x.id===tr.dataset.id); if(g)openSheet(g); });
-
 render();
 
 // ---- data (Firebase) ----
-const EDITOR_EMAIL="ad@sandoval501.org";
 const firebaseConfig={
   apiKey:"AIzaSyDwGvqestPCsgdeud1U7lOAgNyRTAP1P8g",
   authDomain:"sandoval-schedule.firebaseapp.com",
@@ -332,46 +381,249 @@ const firebaseConfig={
   appId:"1:581579377659:web:958f7fc2b8b909b8a0595e"
 };
 const STARTER=[{"id":"g001","date":"2026-10-17","time":"TBA","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Mike Shaffer Shootout","depart":"","tent":false},{"id":"g002","date":"2026-10-17","time":"TBA","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"Mike Shaffer Shootout","depart":"","tent":false},{"id":"g003","date":"2026-10-19","time":"TBA","team":"Girls Jr. High","ha":"A","facility":"","opp":"Central City Tournament","depart":"","tent":false},{"id":"g004","date":"2026-10-20","time":"TBA","team":"Girls Jr. High","ha":"A","facility":"","opp":"Central City Tournament","depart":"","tent":false},{"id":"g005","date":"2026-10-21","time":"TBA","team":"Girls Jr. High","ha":"A","facility":"","opp":"Central City Tournament","depart":"","tent":false},{"id":"g006","date":"2026-10-22","time":"TBA","team":"Girls Jr. High","ha":"A","facility":"","opp":"Central City Tournament","depart":"","tent":false},{"id":"g007","date":"2026-10-23","time":"TBA","team":"Girls Jr. High","ha":"A","facility":"","opp":"Central City Tournament","depart":"","tent":false},{"id":"g008","date":"2026-10-26","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"Hoffman Trinity Lutheran","depart":"","tent":false},{"id":"g009","date":"2026-10-26","time":"6:00 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"Ramsey","depart":"","tent":false},{"id":"g010","date":"2026-10-28","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"Selmaville","depart":"","tent":false},{"id":"g011","date":"2026-11-02","time":"TBA","team":"Boys Jr. High","ha":"A","facility":"","opp":"St. Mary's Tournament","depart":"","tent":false},{"id":"g012","date":"2026-11-02","time":"5:30 PM","team":"Girls Jr. High","ha":"A","facility":"","opp":"Opdyke-Belle Rive","depart":"","tent":false},{"id":"g013","date":"2026-11-03","time":"TBA","team":"Boys Jr. High","ha":"A","facility":"","opp":"St. Mary's Tournament","depart":"","tent":false},{"id":"g014","date":"2026-11-04","time":"TBA","team":"Boys Jr. High","ha":"A","facility":"","opp":"St. Mary's Tournament","depart":"","tent":false},{"id":"g015","date":"2026-11-04","time":"6:00 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"South Central","depart":"","tent":false},{"id":"g016","date":"2026-11-05","time":"TBA","team":"Boys Jr. High","ha":"A","facility":"","opp":"St. Mary's Tournament","depart":"","tent":false},{"id":"g017","date":"2026-11-05","time":"6:00 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"Iuka","depart":"","tent":false},{"id":"g018","date":"2026-11-06","time":"TBA","team":"Boys Jr. High","ha":"A","facility":"","opp":"St. Mary's Tournament","depart":"","tent":false},{"id":"g019","date":"2026-11-09","time":"6:00 PM","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"North Wamac","depart":"","tent":false},{"id":"g020","date":"2026-11-09","time":"6:00 PM","team":"Girls Jr. High","ha":"A","facility":"","opp":"Ramsey","depart":"","tent":false},{"id":"g021","date":"2026-11-10","time":"6:00 PM","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Central City","depart":"","tent":false},{"id":"g022","date":"2026-11-12","time":"6:00 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"Pocahontas","depart":"","tent":false},{"id":"g023","date":"2026-11-13","time":"6:00 PM","team":"Girls Jr. High","ha":"A","facility":"","opp":"New Horizon Christian","depart":"","tent":false},{"id":"g024","date":"2026-11-16","time":"6:00 PM","team":"Girls Varsity","ha":"H","facility":"HS gym","opp":"Ramsey","depart":"","tent":false},{"id":"g025","date":"2026-11-19","time":"6:00 PM","team":"Girls Varsity","ha":"H","facility":"HS gym","opp":"St. Anthony (V/JV)","depart":"","tent":false},{"id":"g026","date":"2026-11-20","time":"6:00 PM","team":"All Teams","ha":"H","facility":"HS gym","opp":"Meet the Blackhawks","depart":"","tent":false},{"id":"g027","date":"2026-11-23","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"Mulberry Grove (multi-day)","depart":"","tent":false},{"id":"g028","date":"2026-11-23","time":"TBA","team":"Girls Varsity","ha":"A","facility":"","opp":"Cowden-Herrick Thanksgiving Tournament","depart":"","tent":false},{"id":"g029","date":"2026-11-23","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"Raccoon","depart":"","tent":false},{"id":"g030","date":"2026-11-23","time":"6:00 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"Odin","depart":"","tent":false},{"id":"g031","date":"2026-11-24","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"Mulberry Grove (multi-day)","depart":"","tent":false},{"id":"g032","date":"2026-11-24","time":"TBA","team":"Girls Varsity","ha":"A","facility":"","opp":"Cowden-Herrick Thanksgiving Tournament","depart":"","tent":false},{"id":"g033","date":"2026-11-24","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"Odin","depart":"","tent":false},{"id":"g034","date":"2026-11-24","time":"6:00 PM","team":"Girls Jr. High","ha":"A","facility":"","opp":"Hoyleton Trinity Lutheran","depart":"","tent":false},{"id":"g035","date":"2026-11-25","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"Mulberry Grove (multi-day)","depart":"","tent":false},{"id":"g036","date":"2026-11-27","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"Mulberry Grove (multi-day)","depart":"","tent":false},{"id":"g037","date":"2026-11-27","time":"TBA","team":"Girls Varsity","ha":"A","facility":"","opp":"Cowden-Herrick Thanksgiving Tournament","depart":"","tent":false},{"id":"g038","date":"2026-11-28","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"Mulberry Grove (multi-day)","depart":"","tent":false},{"id":"g039","date":"2026-11-28","time":"TBA","team":"Girls Varsity","ha":"A","facility":"","opp":"Cowden-Herrick Thanksgiving Tournament","depart":"","tent":false},{"id":"g040","date":"2026-11-30","time":"6:00 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Ramsey","depart":"","tent":false},{"id":"g041","date":"2026-12-01","time":"TBA","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Willow Grove","depart":"","tent":true},{"id":"g042","date":"2026-12-01","time":"6:00 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Mulberry Grove","depart":"","tent":false},{"id":"g043","date":"2026-12-03","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Webber Co-op (at Webber)","depart":"","tent":false},{"id":"g044","date":"2026-12-03","time":"6:00 PM","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Hoffman Trinity Lutheran","depart":"","tent":false},{"id":"g045","date":"2026-12-04","time":"12:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Christ Our Rock Lutheran","depart":"","tent":false},{"id":"g046","date":"2026-12-04","time":"1:30 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Christ Our Rock Lutheran","depart":"","tent":false},{"id":"g047","date":"2026-12-04","time":"5:30 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"Rome (Dix)","depart":"","tent":false},{"id":"g048","date":"2026-12-05","time":"2:00 PM","team":"Girls Varsity","ha":"H","facility":"HS gym","opp":"Red Hill","depart":"","tent":false},{"id":"g049","date":"2026-12-05","time":"2:00 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Red Hill","depart":"","tent":false},{"id":"g050","date":"2026-12-07","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"Webber (at Bluford GS)","depart":"","tent":false},{"id":"g051","date":"2026-12-07","time":"6:00 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"Webber","depart":"","tent":false},{"id":"g052","date":"2026-12-08","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Elverado","depart":"","tent":false},{"id":"g053","date":"2026-12-08","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"New Horizon Christian","depart":"","tent":false},{"id":"g054","date":"2026-12-08","time":"6:00 PM","team":"Girls Jr. High","ha":"A","facility":"","opp":"Trinity-St. John Lutheran","depart":"","tent":false},{"id":"g055","date":"2026-12-09","time":"6:00 PM","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Patoka","depart":"","tent":false},{"id":"g056","date":"2026-12-09","time":"6:15 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Waltonville","depart":"","tent":false},{"id":"g057","date":"2026-12-10","time":"6:00 PM","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Bartelso","depart":"","tent":false},{"id":"g058","date":"2026-12-11","time":"6:15 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Grayville","depart":"","tent":false},{"id":"g059","date":"2026-12-14","time":"6:00 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"All Saints Academy","depart":"","tent":false},{"id":"g060","date":"2026-12-15","time":"6:00 PM","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Pocahontas","depart":"","tent":false},{"id":"g061","date":"2026-12-16","time":"6:00 PM","team":"Music","ha":"H","facility":"HS gym","opp":"Grade School Christmas Program","depart":"","tent":false},{"id":"g062","date":"2026-12-17","time":"5:00 PM","team":"Girls Jr. High","ha":"A","facility":"","opp":"St. Mary's-Mt. Vernon","depart":"","tent":false},{"id":"g063","date":"2026-12-17","time":"6:15 PM","team":"Girls Varsity","ha":"H","facility":"HS gym","opp":"Wayne City","depart":"","tent":false},{"id":"g064","date":"2026-12-18","time":"6:15 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Galatia","depart":"","tent":false},{"id":"g065","date":"2026-12-21","time":"6:00 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Edwards County","depart":"","tent":false},{"id":"g066","date":"2026-12-22","time":"6:00 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"South Central (V/JV)","depart":"","tent":false},{"id":"g067","date":"2026-12-26","time":"TBA","team":"Girls Varsity","ha":"A","facility":"","opp":"Christ Our Rock Tournament","depart":"","tent":false},{"id":"g068","date":"2026-12-28","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"Wayne City (multi-day)","depart":"","tent":false},{"id":"g069","date":"2026-12-28","time":"TBA","team":"Girls Varsity","ha":"A","facility":"","opp":"Christ Our Rock Tournament","depart":"","tent":false},{"id":"g070","date":"2026-12-29","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"Wayne City (multi-day)","depart":"","tent":false},{"id":"g071","date":"2026-12-29","time":"TBA","team":"Girls Varsity","ha":"A","facility":"","opp":"Christ Our Rock Tournament","depart":"","tent":false},{"id":"g072","date":"2026-12-30","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"Wayne City (multi-day)","depart":"","tent":false},{"id":"g073","date":"2026-12-30","time":"TBA","team":"Girls Varsity","ha":"A","facility":"","opp":"Christ Our Rock Lutheran","depart":"","tent":false},{"id":"g074","date":"2027-01-05","time":"6:00 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Cisne","depart":"","tent":false},{"id":"g075","date":"2027-01-05","time":"6:00 PM","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Trinity-St. John Lutheran","depart":"","tent":false},{"id":"g076","date":"2027-01-06","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"St. Rose","depart":"","tent":false},{"id":"g077","date":"2027-01-06","time":"6:00 PM","team":"Girls Jr. High","ha":"H","facility":"HS gym","opp":"St. Rose","depart":"","tent":false},{"id":"g078","date":"2027-01-07","time":"6:00 PM","team":"Girls Jr. High","ha":"A","facility":"","opp":"Odin (at Patoka gym)","depart":"","tent":false},{"id":"g079","date":"2027-01-07","time":"6:00 PM","team":"Boys Jr. High","ha":"H","facility":"HS gym","opp":"Odin","depart":"","tent":false},{"id":"g080","date":"2027-01-11","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Woodlawn","depart":"","tent":false},{"id":"g081","date":"2027-01-11","time":"6:15 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Zeigler-Royalton","depart":"","tent":false},{"id":"g082","date":"2027-01-12","time":"TBA","team":"Boys Jr. High","ha":"A","facility":"","opp":"North Wamac","depart":"","tent":false},{"id":"g083","date":"2027-01-12","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Brownstown","depart":"","tent":false},{"id":"g084","date":"2027-01-13","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"South Central","depart":"","tent":false},{"id":"g085","date":"2027-01-14","time":"TBA","team":"Boys Jr. High","ha":"A","facility":"","opp":"North Wamac","depart":"","tent":false},{"id":"g086","date":"2027-01-14","time":"6:00 PM","team":"Boys JV","ha":"A","facility":"","opp":"First Baptist Academy","depart":"","tent":false},{"id":"g087","date":"2027-01-14","time":"7:30 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"First Baptist Academy","depart":"","tent":false},{"id":"g088","date":"2027-01-15","time":"TBA","team":"Boys Jr. High","ha":"A","facility":"","opp":"North Wamac","depart":"","tent":false},{"id":"g089","date":"2027-01-15","time":"6:00 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Webber","depart":"","tent":false},{"id":"g090","date":"2027-01-16","time":"2:00 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Beecher City","depart":"","tent":false},{"id":"g091","date":"2027-01-19","time":"6:00 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Patoka","depart":"","tent":false},{"id":"g092","date":"2027-01-19","time":"6:00 PM","team":"Boys Jr. High","ha":"A","facility":"","opp":"Iuka","depart":"","tent":false},{"id":"g093","date":"2027-01-19","time":"6:15 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Ramsey","depart":"","tent":false},{"id":"g094","date":"2027-01-21","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Maryville Christian","depart":"","tent":false},{"id":"g095","date":"2027-01-22","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"FBA Tournament","depart":"","tent":false},{"id":"g096","date":"2027-01-23","time":"TBA","team":"Boys Varsity","ha":"A","facility":"","opp":"FBA Tournament","depart":"","tent":false},{"id":"g097","date":"2027-01-25","time":"6:00 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Maryville Christian","depart":"","tent":false},{"id":"g098","date":"2027-01-26","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Martinsville","depart":"","tent":false},{"id":"g099","date":"2027-01-26","time":"6:00 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Martinsville","depart":"","tent":false},{"id":"g100","date":"2027-01-27","time":"6:15 PM","team":"Girls Varsity","ha":"H","facility":"HS gym","opp":"North Clay","depart":"","tent":false},{"id":"g101","date":"2027-01-30","time":"1:00 PM","team":"Girls Varsity","ha":"H","facility":"HS gym","opp":"Greenville","depart":"","tent":false},{"id":"g102","date":"2027-02-01","time":"6:00 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Edwards County","depart":"","tent":false},{"id":"g103","date":"2027-02-01","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Red Hill","depart":"","tent":false},{"id":"g104","date":"2027-02-02","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"Cowden-Herrick","depart":"","tent":false},{"id":"g105","date":"2027-02-03","time":"6:00 PM","team":"Girls Varsity","ha":"H","facility":"HS gym","opp":"Woodlawn","depart":"","tent":false},{"id":"g106","date":"2027-02-04","time":"6:15 PM","team":"Girls Varsity","ha":"H","facility":"HS gym","opp":"Webber Co-op","depart":"","tent":false},{"id":"g107","date":"2027-02-09","time":"6:15 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"St. Elmo","depart":"","tent":false},{"id":"g108","date":"2027-02-11","time":"6:00 PM","team":"Girls Varsity","ha":"A","facility":"","opp":"South Central (V/JV)","depart":"","tent":false},{"id":"g109","date":"2027-02-12","time":"6:00 PM","team":"Boys Varsity","ha":"H","facility":"HS gym","opp":"Wayne City","depart":"","tent":false},{"id":"g110","date":"2027-02-19","time":"6:00 PM","team":"Boys Varsity","ha":"A","facility":"","opp":"Woodlawn","depart":"","tent":false}];
-let fdb=null, fauth=null;
-function gamesCol(){ return fdb.collection("games"); }
-db={
-  doc:p=>{ const id=p.split("/")[1]; const r=gamesCol().doc(id); return {set:d=>r.set(d),delete:()=>r.delete()}; },
-  collection:()=>({doc:()=>{ const r=gamesCol().doc(); return {set:d=>r.set(d)}; }})
-};
-function setEditor(user){
-  const ok=!!(user&&user.email&&user.email.toLowerCase()===EDITOR_EMAIL);
-  canEdit=ok;
-  $("who").textContent=user?(ok?"Editing as "+user.email:"Signed in as "+user.email+" (view only)"):"View only";
-  $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in to edit";
-  $("addBtn").hidden=!ok; $("importBtn").hidden=!(ok&&loaded&&games.length===0);
-  render();
+let fdb=null, fauth=null, unsubMonth=null;
+const gamesCol=()=>fdb.collection("games");
+const metaDoc=()=>fdb.collection("meta").doc("teams");
+function denied(e){ return e&&(e.code==="permission-denied"); }
+async function addTeams(list){
+  const add=list.filter(t=>t&&!teamList.includes(t)); if(!add.length)return;
+  await metaDoc().set({list:firebase.firestore.FieldValue.arrayUnion(...add)},{merge:true});
 }
-if(!firebaseConfig||!window.firebase){
-  $("who").textContent="Not connected";
-  status("This schedule isn't connected to its database yet.");
+function watchMonth(){
+  if(!fdb)return;
+  if(unsubMonth)unsubMonth();
+  const [a,b]=monthRange(cur); loaded=false;
+  unsubMonth=gamesCol().where("date",">=",a).where("date","<",b).onSnapshot(snap=>{
+    games=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+    loaded=true; fillTeams(); status(""); render();
+  },err=>status("The schedule couldn't load. Reload the page to try again."));
+}
+async function checkSetup(){
+  if(!canEdit||metaExists!==false)return;
+  try{
+    const any=await gamesCol().limit(1).get();
+    if(any.empty){ $("importBtn").hidden=false; status("No games yet. Load the starter basketball schedule or click + Add game."); return; }
+    const all=await gamesCol().get();
+    const list=[...new Set(all.docs.map(d=>d.data().team).filter(Boolean))];
+    await metaDoc().set({list});
+  }catch(e){ if(denied(e))status("The database rules need updating. Paste the newest rules from Claude into Firestore and publish them."); }
+}
+function setEditor(user){
+  canEdit=!!(user&&user.email&&user.email.toLowerCase()===EDITOR_EMAIL);
+  $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email+" (view only)"):"View only";
+  $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in to edit";
+  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; if(!canEdit)$("importBtn").hidden=true;
+  checkSetup(); render();
+}
+if(!window.firebase){
+  $("who").textContent="Not connected"; status("This schedule couldn't reach its database. Check the internet connection and reload.");
 } else {
   firebase.initializeApp(firebaseConfig);
   fdb=firebase.firestore(); fauth=firebase.auth();
+  try{ fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
+  metaDoc().onSnapshot(d=>{ metaExists=d.exists; teamList=(d.exists&&d.data().list)||[]; fillTeams(); checkSetup(); },()=>{ metaExists=false; });
   fauth.onAuthStateChanged(setEditor);
+  watchMonth();
   $("authBtn").onclick=async()=>{
     if(fauth.currentUser){ await fauth.signOut(); toast("Signed out"); return; }
     const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({login_hint:EDITOR_EMAIL,prompt:"select_account"});
     try{ await fauth.signInWithPopup(p); }catch(e){ if(e&&e.code!=="auth/popup-closed-by-user")toast("Sign-in didn't work: "+(e.message||e.code)); }
   };
-  gamesCol().onSnapshot(snap=>{
-    games=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
-    loaded=true; fillTeams();
-    $("importBtn").hidden=!(canEdit&&games.length===0);
-    status(games.length?"":canEdit?"No games yet. Load the starter basketball schedule or click + Add game.":"No games posted yet.");
-    render();
-  },err=>status("The schedule couldn't load. Reload the page to try again."));
   $("importBtn").onclick=async()=>{
     if(!canEdit)return; $("importBtn").disabled=true;
-    try{ const b=fdb.batch(); STARTER.forEach(g=>{ const {id,...rest}=g; b.set(gamesCol().doc(id),rest); }); await b.commit(); toast("Loaded "+STARTER.length+" games"); }
+    try{ const b=fdb.batch(); STARTER.forEach(g=>{ const {id,...rest}=g; b.set(gamesCol().doc(id),rest); }); await b.commit();
+      await metaDoc().set({list:[...new Set(STARTER.map(g=>g.team))]}); $("importBtn").hidden=true; toast("Loaded "+STARTER.length+" games"); }
     catch(e){ toast("Couldn't load the schedule: "+(e.message||e.code)); }
     $("importBtn").disabled=false;
   };
 }
+
+// ---- save / delete ----
+let delArmed=false;
+$("delBtn").addEventListener("click",async()=>{
+  if(!editingId)return;
+  if(!delArmed){ delArmed=true; $("delBtn").textContent="Click again to delete"; setTimeout(()=>{delArmed=false;$("delBtn").textContent="Delete";},2500); return; }
+  delArmed=false; $("delBtn").textContent="Delete";
+  try{ await gamesCol().doc(editingId).delete(); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
+});
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const g={date:$("g-date").value,time:$("g-time").value.trim(),team:$("g-team").value.trim(),ha:$("g-ha").value,
+    facility:$("g-fac").value,opp:$("g-opp").value.trim(),depart:$("g-ha").value==="A"?$("g-depart").value.trim():"",tent:$("g-tent").checked};
+  if(!g.date||!g.team||!g.opp){ $("ferr").textContent="Date, team, and opponent are required."; return; }
+  $("saveBtn").disabled=true;
+  try{
+    const ref=editingId?gamesCol().doc(editingId):gamesCol().doc();
+    await ref.set(g); await addTeams([g.team]); toast(editingId?"Game saved":"Game added"); closeSheet();
+  }catch(err){ $("ferr").textContent=denied(err)?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
+  $("saveBtn").disabled=false;
+});
+
+// ---- export PDF ----
+$("exportBtn").onclick=()=>{
+  const [a,b]=monthRange(cur); const end=new Date(b+"T12:00:00"); end.setDate(end.getDate()-1);
+  $("x-from").value=a; $("x-to").value=iso(end); $("x-team").value=$("fTeam").value; $("xerr").textContent="";
+  showSheet("expSheet");
+};
+$("x-go").onclick=async()=>{
+  const type=$("x-type").value, from=$("x-from").value, to=$("x-to").value, team=$("x-team").value;
+  if(!from||!to||to<from){ $("xerr").textContent="Pick a From date and a To date after it."; return; }
+  if(!fdb){ $("xerr").textContent="The schedule isn't connected."; return; }
+  $("x-go").disabled=true; $("xerr").textContent="";
+  try{
+    const snap=await gamesCol().where("date",">=",from).where("date","<=",to).get();
+    let list=snap.docs.map(d=>d.data()).filter(g=>!team||g.team===team);
+    if(type==="travel")list=list.filter(g=>g.ha==="A");
+    list.sort(sortGames);
+    const title=type==="travel"?"Travel Schedule":"Athletics Schedule";
+    const range=fmtDate(from)+" – "+fmtDate(to)+(team?" · "+team:"");
+    const cols=type==="travel"?["Date","Team","Opponent","Game time","Bus departs"]:["Date","Time","Team","H/A","Opponent / event","Facility","Bus departs"];
+    let rows="", lastM="";
+    list.forEach(g=>{
+      const mk=g.date.slice(0,7); if(mk!==lastM){ lastM=mk; const d=new Date(g.date+"T12:00:00"); rows+=`<tr class="pm"><td colspan="${cols.length}">${MN[d.getMonth()]} ${d.getFullYear()}</td></tr>`; }
+      const dt=esc(fmtDate(g.date))+(g.tent?" (may change)":"");
+      rows+= type==="travel"
+        ? `<tr><td>${dt}</td><td>${esc(g.team)}</td><td>${esc(g.opp)}</td><td>${esc(g.time||"TBA")}</td><td>${g.depart?esc(g.depart):'<span class="nb">Not set</span>'}</td></tr>`
+        : `<tr><td>${dt}</td><td>${esc(g.time||"TBA")}</td><td>${esc(g.team)}</td><td>${g.ha==="A"?"Away":"Home"}</td><td>${esc(g.opp)}</td><td>${esc(g.facility||"")}</td><td>${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
+    });
+    if(!list.length)rows=`<tr><td colspan="${cols.length}">No games in this range.</td></tr>`;
+    $("print").innerHTML=`<div class="ph"><img src="${LOGO}" alt=""><div><h1>Sandoval ${title}</h1><p>${esc(range)}</p></div></div><table class="pt"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
+    const old=document.title; document.title="Sandoval "+title+" "+from+" to "+to;
+    closeSheet(); setTimeout(()=>{ window.print(); document.title=old; },150);
+  }catch(e){ $("xerr").textContent="Couldn't build the PDF. Check your connection and try again."; }
+  $("x-go").disabled=false;
+};
+
+// ---- import CSV ----
+let plan=null;
+$("fileBtn").onclick=()=>{ plan=null; $("i-file").value=""; $("i-preview").innerHTML=""; $("i-newWrap").hidden=true; $("i-go").disabled=true; $("ierr").textContent=""; showSheet("impSheet"); };
+function parseCSV(t){
+  const rows=[]; let row=[], f="", q=false;
+  for(let i=0;i<t.length;i++){ const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c==='"')q=true; else if(c===','){row.push(f);f="";} else if(c==='\n'||c==='\r'){ if(c==='\r'&&t[i+1]==='\n')i++; row.push(f); rows.push(row); row=[]; f=""; } else f+=c; }
+  if(f||row.length){row.push(f);rows.push(row);}
+  return rows.filter(r=>r.some(x=>x.trim()));
+}
+function normDate(v){ v=v.trim(); let m;
+  if((m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)))return m[1]+"-"+pad(+m[2])+"-"+pad(+m[3]);
+  if((m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/))){ const y=m[3].length===2?"20"+m[3]:m[3]; return y+"-"+pad(+m[1])+"-"+pad(+m[2]); }
+  return null; }
+const key=(d,t,o)=>d+"|"+String(t).trim().toLowerCase()+"|"+String(o).trim().toLowerCase();
+$("i-file").onchange=async()=>{
+  const f=$("i-file").files[0]; if(!f)return; $("ierr").textContent=""; $("i-go").disabled=true;
+  const rows=parseCSV(await f.text()); if(rows.length<2){ $("ierr").textContent="That file has no rows."; return; }
+  const H=rows[0].map(h=>h.trim().toLowerCase().replace(/[^a-z]/g,""));
+  const ix=n=>H.indexOf(n);
+  const c={date:ix("date"),team:ix("team"),opp:ix("opponent"),time:ix("time"),ha:ix("homeaway"),fac:ix("facility"),depart:ix("busdeparts"),tent:ix("maychange")};
+  if(c.date<0||c.team<0||c.opp<0){ $("ierr").textContent="The file needs date, team, and opponent columns."; return; }
+  const items=[], bad=[];
+  rows.slice(1).forEach((r,i)=>{ const d=normDate(r[c.date]||""); if(!d||!(r[c.team]||"").trim()||!(r[c.opp]||"").trim()){bad.push("Row "+(i+2)+": missing or unreadable date, team, or opponent");return;}
+    const fields={};
+    if(c.time>=0&&r[c.time].trim())fields.time=r[c.time].trim();
+    if(c.ha>=0&&r[c.ha].trim())fields.ha=/^a/i.test(r[c.ha].trim())?"A":"H";
+    if(c.fac>=0&&r[c.fac].trim())fields.facility=/gym/i.test(r[c.fac])?"HS gym":/field|base|soft/i.test(r[c.fac])?"Baseball/softball field":"";
+    if(c.depart>=0&&r[c.depart].trim())fields.depart=r[c.depart].trim();
+    if(c.tent>=0&&r[c.tent].trim())fields.tent=/^(y|yes|true|1)$/i.test(r[c.tent].trim());
+    items.push({date:d,team:r[c.team].trim(),opp:r[c.opp].trim(),fields}); });
+  if(!items.length){ $("ierr").textContent="No usable rows in that file."; return; }
+  const dates=items.map(x=>x.date).sort();
+  try{
+    const snap=await gamesCol().where("date",">=",dates[0]).where("date","<=",dates[dates.length-1]).get();
+    const byKey={}; snap.docs.forEach(d=>{ const g=d.data(); byKey[key(g.date,g.team,g.opp)]=d.id; });
+    const upd=[], add=[];
+    items.forEach(x=>{ const id=byKey[key(x.date,x.team,x.opp)]; if(id)upd.push({id,x}); else add.push(x); });
+    plan={upd,add};
+    const li=a=>a.slice(0,40).map(s=>`<li>${esc(s)}</li>`).join("")+(a.length>40?`<li>…and ${a.length-40} more</li>`:"");
+    $("i-preview").innerHTML=`<div class="ipv"><div><span class="ok">${upd.length}</span> games will be updated.</div>`+
+      (add.length?`<div style="margin-top:6px"><span class="bad">${add.length}</span> rows don't match a game:<ul>${li(add.map(x=>fmtDate(x.date)+" · "+x.team+" · "+x.opp))}</ul></div>`:"")+
+      (bad.length?`<div style="margin-top:6px"><span class="bad">${bad.length}</span> rows skipped:<ul>${li(bad)}</ul></div>`:"")+`</div>`;
+    $("i-newWrap").hidden=!add.length; $("i-new").checked=false; $("i-go").disabled=!(upd.length||add.length);
+  }catch(e){ $("ierr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't check the file against the schedule. Try again."; }
+};
+$("i-go").onclick=async()=>{
+  if(!plan||!canEdit)return;
+  const addNew=$("i-new").checked;
+  const adds=addNew?plan.add:[];
+  const missing=adds.filter(x=>!x.fields.ha);
+  if(missing.length){ $("ierr").textContent=missing.length+" new rows need a home_away value. Add that column or leave the box unchecked."; return; }
+  $("i-go").disabled=true;
+  try{
+    const ops=[];
+    plan.upd.forEach(u=>ops.push(b=>b.update(gamesCol().doc(u.id),u.x.fields)));
+    adds.forEach(x=>ops.push(b=>b.set(gamesCol().doc(),Object.assign({date:x.date,team:x.team,opp:x.opp,time:"",facility:"",depart:"",tent:false},x.fields))));
+    for(let i=0;i<ops.length;i+=400){ const b=fdb.batch(); ops.slice(i,i+400).forEach(f=>f(b)); await b.commit(); }
+    await addTeams(adds.map(x=>x.team));
+    toast("Updated "+plan.upd.length+(adds.length?", added "+adds.length:"")+" games"); closeSheet();
+  }catch(e){ $("ierr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't apply the file. Try again."; }
+  $("i-go").disabled=false;
+};
+// ---- backup ----
+function csvCell(v){ v=v==null?"":String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+$("backupBtn").onclick=async()=>{
+  if(!canEdit||!fdb)return; $("backupBtn").disabled=true;
+  try{
+    const snap=await gamesCol().get();
+    const list=snap.docs.map(d=>d.data()).sort(sortGames);
+    const lines=[["date","team","opponent","time","home_away","facility","bus_departs","may_change"].join(",")];
+    list.forEach(g=>lines.push([g.date,g.team,g.opp,g.time,g.ha==="A"?"Away":"Home",g.facility,g.depart,g.tent?"yes":"no"].map(csvCell).join(",")));
+    const blob=new Blob([lines.join("\n")+"\n"],{type:"text/csv"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="sandoval-schedule-backup-"+todayIso+".csv";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    toast("Backup saved: "+list.length+" games");
+  }catch(e){ toast("Couldn't make the backup. Check your connection and try again."); }
+  $("backupBtn").disabled=false;
+};
+
+// ---- mirror season ----
+let mplan=[];
+const SKIP=/tournament|tourney|shootout|multi-day|classic|invitational|thanksgiving|holiday|meet the|program/i;
+function addDays(s,n){ const d=new Date(s+"T12:00:00"); d.setDate(d.getDate()+n); return iso(d); }
+function seasonOf(s){ const d=new Date(s+"T12:00:00"); const y=d.getMonth()>=6?d.getFullYear():d.getFullYear()-1; return y; }
+$("mirrorBtn").onclick=()=>{
+  const opts=[...new Set(teamList.concat(games.map(g=>g.team)).filter(Boolean))].sort();
+  $("m-team").innerHTML=opts.map(t=>`<option${t===$("fTeam").value?" selected":""}>${esc(t)}</option>`).join("");
+  const y=seasonOf(todayIso);
+  $("m-season").innerHTML=[y-1,y,y+1].map(v=>`<option value="${v}"${v===y?" selected":""}>${v}–${String(v+1).slice(2)}</option>`).join("");
+  $("m-list").innerHTML=""; $("merr").textContent=""; $("m-go").disabled=true; mplan=[];
+  showSheet("mirSheet");
+};
+$("m-preview").onclick=async()=>{
+  const team=$("m-team").value, y=+$("m-season").value;
+  if(!team){ $("merr").textContent="Pick a team."; return; }
+  const from=y+"-07-01", to=(y+1)+"-06-30";
+  $("merr").textContent=""; $("m-preview").disabled=true;
+  try{
+    const [src,dst]=await Promise.all([
+      gamesCol().where("date",">=",from).where("date","<=",to).get(),
+      gamesCol().where("date",">=",addDays(from,364)).where("date","<=",addDays(to,371)).get()]);
+    const have=new Set(dst.docs.map(d=>d.data()).filter(g=>g.team===team).map(g=>g.date+"|"+g.opp.toLowerCase()));
+    const list=src.docs.map(d=>d.data()).filter(g=>g.team===team).sort(sortGames);
+    mplan=list.map(g=>{
+      const ha=g.ha==="A"?"H":"A";
+      const nd=addDays(g.date,364);
+      const fac=ha==="H"?(/baseball|softball/i.test(team)?"Baseball/softball field":"HS gym"):"";
+      return {src:g,dup:have.has(nd+"|"+g.opp.toLowerCase()),on:!SKIP.test(g.opp),game:{date:nd,time:g.time||"",team,ha,facility:fac,opp:g.opp,depart:"",tent:false}};
+    });
+    if(!mplan.length){ $("m-list").innerHTML=`<p class="muted">No ${esc(team)} games in the ${y}–${String(y+1).slice(2)} season.</p>`; $("m-go").disabled=true; return; }
+    $("m-list").innerHTML=`<p class="small muted" style="margin-bottom:6px">Uncheck anything you don't want copied. Tournaments and events start unchecked.</p><div class="mlist">`+mplan.map((m,i)=>{
+      const g=m.src;
+      return `<label class="mrow2${m.dup?" dup":""}"><input type="checkbox" data-i="${i}"${m.on&&!m.dup?" checked":""}${m.dup?" disabled":""}><span>${esc(fmtDate(g.date))} ${esc(vs(g))} <span class="arrow">→</span> <b>${esc(fmtDate(m.game.date))} ${esc(vs(m.game))}</b>${m.dup?"<small>Already on next season's schedule</small>":""}</span></label>`;
+    }).join("")+`</div>`;
+    $("m-list").querySelectorAll("input[data-i]").forEach(cb=>cb.onchange=()=>{ mplan[+cb.dataset.i].on=cb.checked; syncMirror(); });
+    mplan.forEach(m=>{ if(m.dup)m.on=false; }); syncMirror();
+  }catch(e){ $("merr").textContent="Couldn't load that season. Try again."; }
+  $("m-preview").disabled=false;
+};
+function syncMirror(){ const n=mplan.filter(m=>m.on).length; $("m-go").disabled=!n; $("m-go").textContent=n?`Add ${n} game${n===1?"":"s"} to next season`:"Add to next season"; }
+$("m-go").onclick=async()=>{
+  const pick=mplan.filter(m=>m.on); if(!pick.length||!canEdit)return;
+  $("m-go").disabled=true;
+  try{
+    for(let i=0;i<pick.length;i+=400){ const b=fdb.batch(); pick.slice(i,i+400).forEach(m=>b.set(gamesCol().doc(),m.game)); await b.commit(); }
+    toast("Added "+pick.length+" games to next season"); closeSheet();
+  }catch(e){ $("merr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't add the games. Try again."; $("m-go").disabled=false; }
+};
 })();
 </script>
 
