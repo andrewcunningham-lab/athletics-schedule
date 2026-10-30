@@ -113,6 +113,15 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 .toast.on{opacity:1}
 @media (max-width:640px){.form .two{grid-template-columns:1fr}.key{margin-left:0}}
 .muted{color:var(--muted);margin:0}
+.dgrp{border:1px solid var(--line);border-radius:8px;margin-bottom:10px;overflow:hidden}
+.dgrp h4{margin:0;padding:7px 10px;background:var(--bg);font-size:13.5px}
+.dgrp h4 small{font-weight:400;color:var(--muted);margin-left:6px}
+.drow{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border-top:1px solid var(--line);font-size:13.5px}
+.form label.drow{flex-direction:row;align-items:flex-start;cursor:pointer}
+.drow .kp{display:flex;gap:6px;align-items:center;font-weight:600;flex:none;width:62px}
+.drow small{display:block;color:var(--muted)}
+.drow.gone{opacity:.45;text-decoration:line-through}
+.btn.undo{border-color:var(--ink);font-weight:700;max-width:340px;overflow:hidden;text-overflow:ellipsis}
 .ipv{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px}
 .ipv ul{margin:6px 0 0;padding-left:18px;max-height:220px;overflow:auto}
 .mlist{border:1px solid var(--line);border-radius:8px;max-height:46vh;overflow:auto}
@@ -172,6 +181,8 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <button class="btn" id="mirrorBtn" hidden>Mirror season</button>
     <button class="btn" id="backupBtn" hidden>Download backup</button>
     <button class="btn" id="renameBtn" hidden>Rename team</button>
+    <button class="btn" id="dupBtn" hidden>Find duplicates</button>
+    <button class="btn undo" id="undoBtn" hidden>Undo</button>
     <button class="btn" id="importBtn" hidden>Load starter basketball schedule</button>
     <button class="btn primary" id="addBtn" hidden>+ Add game</button>
   </div>
@@ -272,6 +283,15 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <div class="row"><button class="btn primary" id="r-go">Rename</button><button class="btn" id="r-cancel">Cancel</button></div>
   </div>
 </aside>
+<aside class="sheet" id="dupSheet" hidden role="dialog" aria-labelledby="dupTitle">
+  <h3 id="dupTitle">Find duplicates</h3>
+  <div class="form">
+    <p class="small muted">Lists every day where one team has more than one game. Uncheck <b>Keep</b> on the copies you want removed, then click Remove. You can undo it afterward.</p>
+    <div id="d-list"></div>
+    <p class="err" id="derr"></p>
+    <div class="row"><button class="btn primary" id="d-go" disabled>Remove unchecked games</button><button class="btn" id="d-cancel">Close</button></div>
+  </div>
+</aside>
 <div id="print" aria-hidden="true"></div>
 <div class="toast" id="toast"></div>
 
@@ -345,7 +365,7 @@ function renderList(){
 }
 
 // ---- sheets ----
-const SHEETS=["sheet","expSheet","impSheet","mirSheet","renSheet"];
+const SHEETS=["sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; }
 function openSheet(g,date){
@@ -371,6 +391,7 @@ $("x-cancel").addEventListener("click",closeSheet);
 $("i-cancel").addEventListener("click",closeSheet);
 $("m-cancel").addEventListener("click",closeSheet);
 $("r-cancel").addEventListener("click",closeSheet);
+$("d-cancel").addEventListener("click",closeSheet);
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("scrim").hidden)closeSheet(); });
 
 // ---- events ----
@@ -402,6 +423,21 @@ const STARTER=[{"id":"g001","date":"2026-10-17","time":"TBA","team":"Jr. High Bo
 let fdb=null, fauth=null, unsubMonth=null;
 const gamesCol=()=>fdb.collection("games");
 const metaDoc=()=>fdb.collection("meta").doc("teams");
+const histDoc=()=>fdb.collection("meta").doc("history");
+let history=[], undoArmed=false;
+const clean=g=>{ const o=JSON.parse(JSON.stringify(g)); delete o.id; return o; };
+async function record(label,before){
+  if(!before||!before.length)return;
+  let items=[{at:Date.now(),label,before}].concat(history).slice(0,15);
+  while(items.length>1&&JSON.stringify(items).length>800000)items.pop();
+  try{ await histDoc().set({items}); }catch(e){}
+}
+function renderUndo(){
+  const b=$("undoBtn"); if(!b)return;
+  const top=history[0];
+  b.hidden=!(canEdit&&top);
+  if(top&&!undoArmed){ b.textContent="Undo: "+top.label; b.title="Reverses this change ("+top.before.length+" game"+(top.before.length===1?"":"s")+")"; }
+}
 function denied(e){ return e&&(e.code==="permission-denied"); }
 async function addTeams(list){
   const add=list.filter(t=>t&&!teamList.includes(t)); if(!add.length)return;
@@ -430,7 +466,7 @@ function setEditor(user){
   canEdit=!!(user&&user.email&&user.email.toLowerCase()===EDITOR_EMAIL);
   $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email+" (view only)"):"View only";
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in to edit";
-  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; if(!canEdit)$("importBtn").hidden=true;
+  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; renderUndo(); if(!canEdit)$("importBtn").hidden=true;
   checkSetup(); fixNames(); render();
 }
 if(!window.firebase){
@@ -440,6 +476,7 @@ if(!window.firebase){
   fdb=firebase.firestore(); fauth=firebase.auth();
   try{ fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
   metaDoc().onSnapshot(d=>{ metaExists=d.exists; teamList=(d.exists&&d.data().list)||[]; fillTeams(); checkSetup(); },()=>{ metaExists=false; });
+  histDoc().onSnapshot(d=>{ history=(d.exists&&d.data().items)||[]; undoArmed=false; renderUndo(); },()=>{});
   fauth.onAuthStateChanged(setEditor);
   watchMonth();
   $("authBtn").onclick=async()=>{
@@ -462,7 +499,7 @@ $("delBtn").addEventListener("click",async()=>{
   if(!editingId)return;
   if(!delArmed){ delArmed=true; $("delBtn").textContent="Click again to delete"; setTimeout(()=>{delArmed=false;$("delBtn").textContent="Delete";},2500); return; }
   delArmed=false; $("delBtn").textContent="Delete";
-  try{ await gamesCol().doc(editingId).delete(); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
+  try{ const old=games.find(x=>x.id===editingId); await gamesCol().doc(editingId).delete(); if(old)await record("delete "+old.team+" "+vs(old)+" "+fmtDate(old.date),[{id:editingId,d:clean(old)}]); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
 });
 $("form").addEventListener("submit",async e=>{
   e.preventDefault();
@@ -472,7 +509,9 @@ $("form").addEventListener("submit",async e=>{
   $("saveBtn").disabled=true;
   try{
     const ref=editingId?gamesCol().doc(editingId):gamesCol().doc();
-    await ref.set(g); await addTeams([g.team]); toast(editingId?"Game saved":"Game added"); closeSheet();
+    const old=editingId?games.find(x=>x.id===editingId):null;
+    await ref.set(g); await addTeams([g.team]);
+    await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}]); toast(editingId?"Game saved":"Game added"); closeSheet();
   }catch(err){ $("ferr").textContent=denied(err)?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
   $("saveBtn").disabled=false;
 });
@@ -548,10 +587,10 @@ $("i-file").onchange=async()=>{
   const dates=items.map(x=>x.date).sort();
   try{
     const snap=await gamesCol().where("date",">=",dates[0]).where("date","<=",dates[dates.length-1]).get();
-    const byKey={}; snap.docs.forEach(d=>{ const g=d.data(); byKey[key(g.date,g.team,g.opp)]=d.id; });
+    const byKey={}, prev={}; snap.docs.forEach(d=>{ const g=d.data(); prev[d.id]=JSON.parse(JSON.stringify(g)); byKey[key(g.date,g.team,g.opp)]=d.id; });
     const upd=[], add=[];
     items.forEach(x=>{ const id=byKey[key(x.date,x.team,x.opp)]; if(id)upd.push({id,x}); else add.push(x); });
-    plan={upd,add};
+    plan={upd,add,prev};
     const li=a=>a.slice(0,40).map(s=>`<li>${esc(s)}</li>`).join("")+(a.length>40?`<li>…and ${a.length-40} more</li>`:"");
     $("i-preview").innerHTML=`<div class="ipv"><div><span class="ok">${upd.length}</span> games will be updated.</div>`+
       (add.length?`<div style="margin-top:6px"><span class="bad">${add.length}</span> rows don't match a game:<ul>${li(add.map(x=>fmtDate(x.date)+" · "+x.team+" · "+x.opp))}</ul></div>`:"")+
@@ -568,10 +607,12 @@ $("i-go").onclick=async()=>{
   $("i-go").disabled=true;
   try{
     const ops=[];
-    plan.upd.forEach(u=>ops.push(b=>b.update(gamesCol().doc(u.id),u.x.fields)));
-    adds.forEach(x=>ops.push(b=>b.set(gamesCol().doc(),Object.assign({date:x.date,team:x.team,opp:x.opp,time:"",facility:"",depart:"",tent:false},x.fields))));
+    const before=[];
+    plan.upd.forEach(u=>{ before.push({id:u.id,d:plan.prev[u.id]||null}); ops.push(b=>b.update(gamesCol().doc(u.id),u.x.fields)); });
+    adds.forEach(x=>{ const r=gamesCol().doc(); before.push({id:r.id,d:null}); ops.push(b=>b.set(r,Object.assign({date:x.date,team:x.team,opp:x.opp,time:"",facility:"",depart:"",tent:false},x.fields))); });
     for(let i=0;i<ops.length;i+=400){ const b=fdb.batch(); ops.slice(i,i+400).forEach(f=>f(b)); await b.commit(); }
     await addTeams(adds.map(x=>x.team));
+    await record("import ("+plan.upd.length+" updated"+(adds.length?", "+adds.length+" added":"")+")",before);
     toast("Updated "+plan.upd.length+(adds.length?", added "+adds.length:"")+" games"); closeSheet();
   }catch(e){ $("ierr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't apply the file. Try again."; }
   $("i-go").disabled=false;
@@ -638,7 +679,9 @@ $("m-go").onclick=async()=>{
   const pick=mplan.filter(m=>m.on); if(!pick.length||!canEdit)return;
   $("m-go").disabled=true;
   try{
-    for(let i=0;i<pick.length;i+=400){ const b=fdb.batch(); pick.slice(i,i+400).forEach(m=>b.set(gamesCol().doc(),m.game)); await b.commit(); }
+    const refs=pick.map(()=>gamesCol().doc());
+    for(let i=0;i<pick.length;i+=400){ const b=fdb.batch(); pick.slice(i,i+400).forEach((m,j)=>b.set(refs[i+j],m.game)); await b.commit(); }
+    await record("mirror "+pick[0].game.team+" ("+pick.length+" games)",refs.map(r=>({id:r.id,d:null})));
     toast("Added "+pick.length+" games to next season"); closeSheet();
   }catch(e){ $("merr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't add the games. Try again."; $("m-go").disabled=false; }
 };
@@ -648,6 +691,7 @@ async function renameTeam(from,to){
   for(let i=0;i<snap.docs.length;i+=400){ const b=fdb.batch(); snap.docs.slice(i,i+400).forEach(d=>b.update(d.ref,{team:to})); await b.commit(); }
   teamList=[...new Set(teamList.filter(t=>t!==from).concat([to]))].sort();
   await metaDoc().set({list:teamList});
+  renameTeam.last=snap.docs.map(d=>({id:d.id,d:JSON.parse(JSON.stringify(d.data()))}));
   return snap.size;
 }
 const NAME_FIX={"Boys Jr. High":"Jr. High Boys Basketball","Girls Jr. High":"Jr. High Girls Basketball","Boys Varsity":"HS Boys Basketball","Girls Varsity":"HS Girls Basketball"};
@@ -682,9 +726,57 @@ $("r-go").onclick=async()=>{
   if(!from||!to){ $("rerr").textContent="Pick a team and type the new name."; return; }
   if(from===to){ closeSheet(); return; }
   $("r-go").disabled=true;
-  try{ const n=await renameTeam(from,to); if($("fTeam").value===from)$("fTeam").value=""; toast("Renamed "+n+" games to "+to); closeSheet(); }
+  try{ const n=await renameTeam(from,to); await record("rename "+from+" → "+to,renameTeam.last||[]); if($("fTeam").value===from)$("fTeam").value=""; toast("Renamed "+n+" games to "+to); closeSheet(); }
   catch(e){ $("rerr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't rename. Try again."; }
   $("r-go").disabled=false;
+};
+// ---- find duplicates ----
+let dplan=[];
+function filled(g){ return ["time","facility","depart"].reduce((n,k)=>n+(g[k]&&g[k]!=="TBA"?1:0),0)+(g.depart?2:0); }
+$("dupBtn").onclick=async()=>{
+  showSheet("dupSheet"); $("derr").textContent=""; $("d-go").disabled=true; $("d-list").innerHTML='<p class="muted">Checking the schedule…</p>';
+  try{
+    const snap=await gamesCol().get();
+    const groups={};
+    snap.docs.forEach(d=>{ const g=Object.assign({id:d.id},d.data()); const k=g.date+"|"+String(g.team).trim().toLowerCase(); (groups[k]=groups[k]||[]).push(g); });
+    dplan=[];
+    Object.values(groups).filter(a=>a.length>1).sort((a,b)=>a[0].date<b[0].date?-1:1).forEach(a=>{
+      const byOpp={}; a.forEach(g=>{ const o=String(g.opp).trim().toLowerCase(); (byOpp[o]=byOpp[o]||[]).push(g); });
+      const exact=Object.values(byOpp).some(x=>x.length>1);
+      a.forEach(g=>g.keep=true);
+      Object.values(byOpp).forEach(x=>{ if(x.length>1){ x.sort((p,q)=>filled(q)-filled(p)); x.slice(1).forEach(g=>g.keep=false); } });
+      dplan.push({games:a,exact});
+    });
+    if(!dplan.length){ $("d-list").innerHTML='<p class="muted"><b>No duplicates found.</b> No team has more than one game on the same day.</p>'; return; }
+    $("d-list").innerHTML=dplan.map((grp,gi)=>`<div class="dgrp"><h4>${esc(fmtDate(grp.games[0].date))} · ${esc(grp.games[0].team)}<small>${grp.exact?"same opponent listed more than once":"different opponents, check whether both are real"}</small></h4>`+
+      grp.games.map((g,i)=>`<label class="drow${g.keep?"":" gone"}"><span class="kp"><input type="checkbox" data-g="${gi}" data-i="${i}"${g.keep?" checked":""}> Keep</span><span><b>${esc(vs(g))}</b> · ${esc(g.time||"TBA")}<small>${esc(g.facility||"No facility")}${g.ha==="A"?" · bus "+esc(g.depart||"not set"):""}</small></span></label>`).join("")+`</div>`).join("");
+    $("d-list").querySelectorAll("input[data-g]").forEach(cb=>cb.onchange=()=>{ const g=dplan[+cb.dataset.g].games[+cb.dataset.i]; g.keep=cb.checked; cb.closest(".drow").classList.toggle("gone",!cb.checked); syncDup(); });
+    syncDup();
+  }catch(e){ $("d-list").innerHTML=""; $("derr").textContent="Couldn't check the schedule. Try again."; }
+};
+function syncDup(){ const n=dplan.reduce((t,g)=>t+g.games.filter(x=>!x.keep).length,0); $("d-go").disabled=!n; $("d-go").textContent=n?`Remove ${n} game${n===1?"":"s"}`:"Remove unchecked games"; }
+$("d-go").onclick=async()=>{
+  const gone=[].concat(...dplan.map(g=>g.games.filter(x=>!x.keep))); if(!gone.length||!canEdit)return;
+  $("d-go").disabled=true;
+  try{
+    for(let i=0;i<gone.length;i+=400){ const b=fdb.batch(); gone.slice(i,i+400).forEach(g=>b.delete(gamesCol().doc(g.id))); await b.commit(); }
+    await record("remove "+gone.length+" duplicate"+(gone.length===1?"":"s"),gone.map(g=>({id:g.id,d:clean(Object.assign({},g,{keep:undefined}))})));
+    toast("Removed "+gone.length+" games"); closeSheet();
+  }catch(e){ $("derr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't remove them. Try again."; $("d-go").disabled=false; }
+};
+// ---- undo ----
+$("undoBtn").onclick=async()=>{
+  const top=history[0]; if(!top||!canEdit)return;
+  const b=$("undoBtn");
+  if(!undoArmed){ undoArmed=true; b.textContent="Click again to undo"; setTimeout(()=>{ undoArmed=false; renderUndo(); },3000); return; }
+  undoArmed=false; b.disabled=true;
+  try{
+    const ops=top.before;
+    for(let i=0;i<ops.length;i+=400){ const bt=fdb.batch(); ops.slice(i,i+400).forEach(o=>{ const r=gamesCol().doc(o.id); if(o.d)bt.set(r,o.d); else bt.delete(r); }); await bt.commit(); }
+    await histDoc().set({items:history.slice(1)});
+    toast("Undid: "+top.label);
+  }catch(e){ toast(denied(e)?"You don't have permission to change the schedule.":"Couldn't undo. Try again."); }
+  b.disabled=false; renderUndo();
 };
 })();
 </script>
