@@ -125,6 +125,26 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 .drow .kp{display:flex;gap:6px;align-items:center;font-weight:600;flex:none;width:62px}
 .drow small{display:block;color:var(--muted)}
 .drow.gone{opacity:.45;text-decoration:line-through}
+.offs{border:1px solid var(--line);border-radius:8px;padding:8px 10px 10px;margin:0;display:flex;flex-direction:column;gap:6px}
+.offs legend{padding:0 4px}
+.oslot{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center}
+.oslot .n{font-weight:700;color:var(--muted)}
+.oslot label{flex-direction:row;align-items:center;gap:5px;font-size:13px;white-space:nowrap}
+.sheet.wide{width:min(620px,100vw)}
+.nrow{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;background:var(--surface);width:100%;text-align:left}
+.nrow:hover{border-color:var(--ink)}
+.nrow small{display:block;color:var(--muted)}
+.nstat{font-size:12px;font-weight:700;white-space:nowrap;border:1.5px solid currentColor;border-radius:4px;padding:1px 6px;flex:none}
+.rrow{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--line);font-size:13.5px}
+.rrow input{width:100%}
+.cfs{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.cfs .h{display:flex;gap:8px;align-items:flex-start;font-weight:700}
+.cfs .h label{flex-direction:row;align-items:center;gap:6px}
+.cfs ul{margin:4px 0 0 22px;padding:0;font-size:13px}
+.cfs .em{font-weight:400;color:var(--muted);font-size:13px}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr) auto;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--line);font-size:13.5px}
+.srow input{width:100%}
+textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;width:100%;box-sizing:border-box}
 .btn.undo{border-color:var(--ink);font-weight:700;max-width:340px;overflow:hidden;text-overflow:ellipsis}
 .ipv{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px}
 .ipv ul{margin:6px 0 0;padding-left:18px;max-height:220px;overflow:auto}
@@ -185,6 +205,8 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <button class="btn" id="mirrorBtn" hidden>Mirror season</button>
     <button class="btn" id="backupBtn" hidden>Download backup</button>
     <button class="btn" id="renameBtn" hidden>Rename team</button>
+    <button class="btn" id="refBtn" hidden>Officials</button>
+    <button class="btn" id="cfBtn" hidden>Game confirmations</button>
     <button class="btn" id="dupBtn" hidden>Find duplicates</button>
     <button class="btn undo" id="undoBtn" hidden>Undo</button>
     <button class="btn" id="importBtn" hidden>Load starter basketball schedule</button>
@@ -226,6 +248,11 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
       <label><span class="lbl">Facility</span><select id="g-fac"><option value="">None</option><option>HS gym</option><option>School field</option><option>Park field</option></select></label>
     </div>
     <label><span class="lbl">Opponent or event</span><input type="text" id="g-opp" required></label>
+    <fieldset id="offWrap" class="offs" hidden>
+      <legend class="lbl">Officials <span class="small muted">(only you and Ryan can see these)</span></legend>
+      <div id="offSlots"></div>
+    </fieldset>
+    <datalist id="refNames"></datalist>
     <label id="departWrap"><span class="lbl">Bus departs</span><input type="text" id="g-depart" placeholder="e.g. 4:15 PM"></label>
     <label class="chk"><input type="checkbox" id="g-tent"> Date may change</label>
     <label class="chk"><input type="checkbox" id="g-cancel"> Cancelled (game stays on the schedule and still gets mirrored)</label>
@@ -248,6 +275,7 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
       <label><span class="lbl">To</span><input type="date" id="x-to"></label>
     </div>
     <label><span class="lbl">Team</span><select id="x-team"><option value="">All teams</option></select></label>
+    <label class="chk" id="x-offWrap" hidden><input type="checkbox" id="x-off"> Include officials (full schedule only)</label>
     <p class="small muted" id="x-note">Your browser's print window opens. Choose <b>Save as PDF</b> as the destination.</p>
     <p class="err" id="xerr"></p>
     <div class="row"><button class="btn primary" id="x-go">Create PDF</button><button class="btn" id="x-cancel">Cancel</button></div>
@@ -256,6 +284,7 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 <aside class="sheet" id="impSheet" hidden role="dialog" aria-labelledby="impTitle">
   <h3 id="impTitle">Import file</h3>
   <div class="form">
+    <p class="small muted">Officials can come in the same file: add <b>official_1</b>, <b>official_2</b>, <b>official_3</b> columns, plus an optional <b>officials_confirmed</b> column (yes or no).</p>
     <p class="small muted">Load a CSV file from Claude. Each row is matched to a game by date, team, and opponent. Matching games get the values in the file, and rows that don't match can be added as new games.</p>
     <label><span class="lbl">CSV file</span><input type="file" id="i-file" accept=".csv,text/csv"></label>
     <div id="i-preview"></div>
@@ -296,6 +325,60 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
     <p class="err" id="derr"></p>
     <div class="row"><button class="btn primary" id="d-go" disabled>Remove unchecked games</button><button class="btn" id="d-cancel">Close</button></div>
   </div>
+</aside>
+<aside class="sheet wide" id="refSheet" hidden role="dialog" aria-labelledby="refTitle">
+  <h3 id="refTitle">Officials</h3>
+  <div class="seg" role="group" aria-label="Officials view" style="align-self:flex-start;margin-bottom:10px"><button id="rt-need" aria-pressed="true">Needs officials</button><button id="rt-list" aria-pressed="false">Officials list</button></div>
+  <div id="rp-need">
+    <p class="small muted">Upcoming home games that are missing an official or still have someone unconfirmed. Click a game to fill it in.</p>
+    <div id="needList"></div>
+  </div>
+  <div id="rp-list" hidden>
+    <div class="form">
+      <div class="two"><label><span class="lbl">Name</span><input type="text" id="o-name"></label><label><span class="lbl">Phone</span><input type="text" id="o-phone"></label></div>
+      <label><span class="lbl">Email</span><input type="text" id="o-email"></label>
+      <div class="row"><button class="btn primary" id="o-add">Add official</button><label class="btn" for="o-file">Import officials CSV</label><input type="file" id="o-file" accept=".csv,text/csv" hidden></div>
+      <p class="small muted">The officials CSV needs a <b>name</b> column. <b>phone</b> and <b>email</b> are optional.</p>
+      <p class="err" id="oerr"></p>
+    </div>
+    <div id="refRoster"></div>
+  </div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="ref-close">Close</button></div>
+</aside>
+<aside class="sheet wide" id="cfSheet" hidden role="dialog" aria-labelledby="cfTitle">
+  <h3 id="cfTitle">Game confirmations</h3>
+  <div class="seg" role="group" aria-label="Confirmations view" style="align-self:flex-start;margin-bottom:10px"><button id="ct-send" aria-pressed="true">Send</button><button id="ct-sch" aria-pressed="false">Schools</button><button id="ct-set" aria-pressed="false">Email setup</button></div>
+  <div id="cp-send">
+    <div class="form">
+      <label><span class="lbl">Week starting (Monday)</span><input type="date" id="c-week"></label>
+      <p class="small muted">Each school's AD gets one email listing every home and away game with them that week. Tournaments and cancelled games are left out.</p>
+      <div class="row"><button class="btn" id="c-prev">Show who gets emails</button></div>
+    </div>
+    <div id="c-plan"></div>
+    <p class="err" id="cerr"></p>
+    <div class="row" id="c-goWrap" hidden><button class="btn primary" id="c-go">Send emails</button></div>
+  </div>
+  <div id="cp-sch" hidden>
+    <div class="form">
+      <div class="two"><label><span class="lbl">School</span><input type="text" id="s-name"></label><label><span class="lbl">AD email</span><input type="text" id="s-email"></label></div>
+      <label><span class="lbl">Other names on the schedule <span class="small muted">(separate with commas, like Patoka/Odin)</span></span><input type="text" id="s-alias"></label>
+      <div class="row"><button class="btn primary" id="s-add">Add school</button><label class="btn" for="s-file">Import schools CSV</label><input type="file" id="s-file" accept=".csv,text/csv" hidden></div>
+      <p class="small muted">The schools CSV needs <b>school</b> and <b>email</b> columns. <b>other_names</b> is optional (separate names with semicolons).</p>
+      <p class="err" id="serr"></p>
+    </div>
+    <div id="schList"></div>
+  </div>
+  <div id="cp-set" hidden>
+    <div class="form">
+      <label><span class="lbl">Subject</span><input type="text" id="e-subj"></label>
+      <label><span class="lbl">Message</span><textarea id="e-body" rows="11"></textarea></label>
+      <p class="small muted">Fill-ins: <b>{school}</b> = their school name, <b>{week}</b> = the week's dates, <b>{games}</b> = the list of games.</p>
+      <label><span class="lbl">Email sender link (Google Apps Script web app URL)</span><input type="text" id="e-url" placeholder="https://script.google.com/macros/s/.../exec"></label>
+      <div class="row"><button class="btn primary" id="e-save">Save</button><button class="btn" id="e-test">Send a test to ad@sandoval501.org</button></div>
+      <p class="err" id="eerr"></p>
+    </div>
+  </div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="cf-close">Close</button></div>
 </aside>
 <div id="print" aria-hidden="true"></div>
 <div class="toast" id="toast"></div>
@@ -353,7 +436,7 @@ function renderCal(){
     const shown=all.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team));
     h+=`<div class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canEdit?`<button class="add" data-add="${key}" aria-label="Add game on ${MN[m]} ${d}">+</button>`:""}</div>`+
       `<div class="fac">${used.map(k=>`<span class="flag ${FAC[k].c}">${FAC[k].l}</span>`).join("")}</div>`+
-      shown.map(g=>`<button class="ev${g.tent?" tent":""}${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}">${g.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}</span></button>`).join("")+
+      shown.map(g=>`<button class="ev${g.tent?" tent":""}${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}">${g.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}${canEdit&&needsRefs(g)?" · "+refLabel(g):""}</span></button>`).join("")+
       `</div>`;
   }
   const tail=(7-((start+days)%7))%7; for(let i=0;i<tail;i++)h+=`<div class="day out"></div>`;
@@ -365,12 +448,12 @@ function renderList(){
   if(!list.length){ $("rows").innerHTML=`<tr><td colspan="7"><div class="empty"><b>No games this month</b>${games.length?"Change the filters to see more.":"Use the arrows to move to another month."}</div></td></tr>`; return; }
   $("rows").innerHTML=list.map(g=>{
     const fc=FAC[g.facility]?FAC[g.facility].c:"";
-    return `<tr data-id="${esc(g.id)}"${g.cancelled?' class="cancel"':""}><td class="d">${fmtDate(g.date)}${g.cancelled?'<div><span class="cx">CANCELLED</span></div>':""}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td class="strike">${esc(g.team)}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td class="strike">${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
+    return `<tr data-id="${esc(g.id)}"${g.cancelled?' class="cancel"':""}><td class="d">${fmtDate(g.date)}${g.cancelled?'<div><span class="cx">CANCELLED</span></div>':""}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td class="strike">${esc(g.team)}${canEdit&&needsRefs(g)?`<div class="tentnote">${refLabel(g)}</div>`:""}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td class="strike">${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
   }).join("");
 }
 
 // ---- sheets ----
-const SHEETS=["sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet"];
+const SHEETS=["sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; }
 function openSheet(g,date){
@@ -381,14 +464,21 @@ function openSheet(g,date){
     $("g-date").value=g?g.date:(date||todayIso); $("g-time").value=g?g.time||"":"";
     $("g-team").value=g?g.team:""; $("g-ha").value=g?g.ha:"H"; $("g-fac").value=g?g.facility||"":"";
     $("g-opp").value=g?g.opp:""; $("g-depart").value=g?g.depart||"":""; $("g-tent").checked=!!(g&&g.tent); $("g-cancel").checked=!!(g&&g.cancelled);
-    $("delBtn").hidden=!g; syncDepart(); $("g-date").focus();
+    $("delBtn").hidden=!g; syncDepart(); drawSlots(g); $("g-date").focus();
   } else {
     $("form").hidden=true; $("ro").hidden=false; $("sheetTitle").textContent=g.team;
     $("ro").innerHTML=`${g.cancelled?'<p style="margin:0 0 6px"><span class="cx" style="font-size:13px">CANCELLED</span> This game will not be played.</p>':""}<dl class="ro"><dt>Date</dt><dd>${fmtDate(g.date)}${g.tent?" (may change)":""}</dd><dt>Time</dt><dd>${esc(g.time||"TBA")}</dd><dt>Opponent or event</dt><dd>${esc(vs(g))}</dd>${g.facility?`<dt>Facility</dt><dd>${esc(g.facility)}</dd>`:""}${g.ha==="A"?`<dt>Bus departs</dt><dd>${esc(g.depart||"Not set")}</dd>`:""}</dl><div class="row" style="margin-top:16px"><button class="btn" id="roClose">Close</button></div>`;
     $("roClose").onclick=closeSheet; $("roClose").focus();
   }
 }
-function syncDepart(){ $("departWrap").hidden=$("g-ha").value!=="A"; }
+function syncDepart(){ $("departWrap").hidden=$("g-ha").value!=="A"; syncOffWrap(); }
+function syncOffWrap(){ $("offWrap").hidden=!(canEdit&&$("g-ha").value==="H"&&$("g-team").value.trim()!=="Music"); const n=/^HS\b.*basketball/i.test($("g-team").value)?3:2; document.querySelectorAll("#offSlots .oslot").forEach((el,i)=>el.hidden=i>=n); }
+function drawSlots(g){
+  const sl=(g&&asg[g.id]&&asg[g.id].slots)||[];
+  $("offSlots").innerHTML=[0,1,2].map(i=>`<div class="oslot"><span class="n">${i+1}</span><input type="text" id="of-${i}" list="refNames" placeholder="Official ${i+1}" value="${esc((sl[i]&&sl[i].name)||"")}"><label><input type="checkbox" id="oc-${i}"${sl[i]&&sl[i].confirmed?" checked":""}> Confirmed</label></div>`).join("");
+  syncOffWrap();
+}
+$("g-team").addEventListener("input",syncOffWrap);
 $("g-ha").addEventListener("change",()=>{ syncDepart(); if($("g-ha").value==="A"&&$("g-fac").value)$("g-fac").value=""; });
 $("scrim").addEventListener("click",closeSheet);
 $("cancelBtn").addEventListener("click",closeSheet);
@@ -397,6 +487,7 @@ $("i-cancel").addEventListener("click",closeSheet);
 $("m-cancel").addEventListener("click",closeSheet);
 $("r-cancel").addEventListener("click",closeSheet);
 $("d-cancel").addEventListener("click",closeSheet);
+$("ref-close").addEventListener("click",closeSheet);
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("scrim").hidden)closeSheet(); });
 
 // ---- events ----
@@ -429,6 +520,26 @@ let fdb=null, fauth=null, unsubMonth=null;
 const gamesCol=()=>fdb.collection("games");
 const metaDoc=()=>fdb.collection("meta").doc("teams");
 const histDoc=()=>fdb.collection("meta").doc("history");
+const asgCol=()=>fdb.collection("refAssign");
+const rosterCol=()=>fdb.collection("refs");
+let asg={}, roster=[], unsubAsg=null, unsubRoster=null;
+const slotsFor=g=>/^HS\b.*basketball/i.test(g.team||"")?3:2;
+const needsRefs=g=>g.ha==="H"&&!g.cancelled&&g.team!=="Music";
+function refStatus(g){ const a=asg[g.id], n=slotsFor(g), sl=(a&&a.slots)||[]; const filled=sl.filter(x=>x&&x.name).length, conf=sl.filter(x=>x&&x.name&&x.confirmed).length; return {n,filled,conf,done:filled>=n&&conf>=n}; }
+function refLabel(g){ const r=refStatus(g); if(r.done)return "Officials set"; return "Officials "+r.filled+" of "+r.n+(r.filled>r.conf?" · "+(r.filled-r.conf)+" unconfirmed":""); }
+function watchRefs(){
+  if(unsubAsg){unsubAsg();unsubAsg=null;} if(unsubRoster){unsubRoster();unsubRoster=null;}
+  asg={}; roster=[];
+  if(!canEdit||!fdb)return;
+  const [a,b]=monthRange(cur);
+  unsubAsg=asgCol().where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ asg={}; sn.docs.forEach(d=>asg[d.id]=d.data()); render(); },()=>{});
+  unsubRoster=rosterCol().onSnapshot(sn=>{ roster=sn.docs.map(d=>Object.assign({id:d.id},d.data())).sort((x,y)=>String(x.name).localeCompare(y.name)); $("refNames").innerHTML=roster.map(r=>`<option value="${esc(r.name)}">`).join(""); if(!$("refSheet").hidden&&!$("rp-list").hidden)renderRoster(); },()=>{});
+}
+async function addRosterNames(names){
+  const have=new Set(roster.map(r=>String(r.name).toLowerCase()));
+  const add=[...new Set(names.map(n=>String(n||"").trim()).filter(Boolean))].filter(n=>!have.has(n.toLowerCase()));
+  if(!add.length)return; const b=fdb.batch(); add.forEach(n=>b.set(rosterCol().doc(),{name:n,phone:"",email:""})); await b.commit();
+}
 let history=[], undoArmed=false;
 const clean=g=>{ const o=JSON.parse(JSON.stringify(g)); delete o.id; return o; };
 async function record(label,before){
@@ -441,7 +552,7 @@ function renderUndo(){
   const b=$("undoBtn"); if(!b)return;
   const top=history[0];
   b.hidden=!(canEdit&&top);
-  if(top&&!undoArmed){ b.textContent="Undo: "+top.label; b.title="Reverses this change ("+top.before.length+" game"+(top.before.length===1?"":"s")+")"; }
+  if(top&&!undoArmed){ b.textContent="Undo: "+top.label; { const ng=top.before.filter(o=>!o.col||o.col==="games").length; b.title="Reverses this change ("+ng+" game"+(ng===1?"":"s")+")"; } }
 }
 function denied(e){ return e&&(e.code==="permission-denied"); }
 async function addTeams(list){
@@ -452,6 +563,7 @@ function watchMonth(){
   if(!fdb)return;
   if(unsubMonth)unsubMonth();
   const [a,b]=monthRange(cur); loaded=false;
+  if(canEdit)watchRefs();
   unsubMonth=gamesCol().where("date",">=",a).where("date","<",b).onSnapshot(snap=>{
     games=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
     loaded=true; fillTeams(); status(""); render();
@@ -471,7 +583,7 @@ function setEditor(user){
   canEdit=!!(user&&user.email&&user.email.toLowerCase()===EDITOR_EMAIL);
   $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email+" (view only)"):"View only";
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in to edit";
-  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; renderUndo(); if(!canEdit)$("importBtn").hidden=true;
+  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canEdit; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
   checkSetup(); fixNames(); render();
 }
 if(!window.firebase){
@@ -504,7 +616,7 @@ $("delBtn").addEventListener("click",async()=>{
   if(!editingId)return;
   if(!delArmed){ delArmed=true; $("delBtn").textContent="Click again to delete"; setTimeout(()=>{delArmed=false;$("delBtn").textContent="Delete";},2500); return; }
   delArmed=false; $("delBtn").textContent="Delete";
-  try{ const old=games.find(x=>x.id===editingId); await gamesCol().doc(editingId).delete(); if(old)await record("delete "+old.team+" "+vs(old)+" "+fmtDate(old.date),[{id:editingId,d:clean(old)}]); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
+  try{ const old=games.find(x=>x.id===editingId); const oa=asg[editingId]?JSON.parse(JSON.stringify(asg[editingId])):null; await gamesCol().doc(editingId).delete(); if(oa)await asgCol().doc(editingId).delete(); if(old)await record("delete "+old.team+" "+vs(old)+" "+fmtDate(old.date),[{id:editingId,d:clean(old)}].concat(oa?[{col:"refAssign",id:editingId,d:oa}]:[])); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
 });
 $("form").addEventListener("submit",async e=>{
   e.preventDefault();
@@ -516,10 +628,151 @@ $("form").addEventListener("submit",async e=>{
     const ref=editingId?gamesCol().doc(editingId):gamesCol().doc();
     const old=editingId?games.find(x=>x.id===editingId):null;
     await ref.set(g); await addTeams([g.team]);
-    await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}]); toast(editingId?"Game saved":"Game added"); closeSheet();
+    let asgBefore=null;
+    if(canEdit){
+      const n=/^HS\b.*basketball/i.test(g.team)?3:2;
+      const slots=g.ha==="H"?[0,1,2].slice(0,n).map(i=>({name:$("of-"+i).value.trim(),confirmed:$("oc-"+i).checked})):[];
+      const prevA=editingId&&asg[editingId]?JSON.parse(JSON.stringify(asg[editingId])):null;
+      const hasAny=slots.some(x=>x.name);
+      if(hasAny||prevA){ asgBefore={col:"refAssign",id:ref.id,d:prevA}; if(hasAny)await asgCol().doc(ref.id).set({date:g.date,slots}); else await asgCol().doc(ref.id).delete(); }
+      if(hasAny)await addRosterNames(slots.map(x=>x.name));
+    }
+    await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}].concat(asgBefore?[asgBefore]:[])); toast(editingId?"Game saved":"Game added"); closeSheet();
   }catch(err){ $("ferr").textContent=denied(err)?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
   $("saveBtn").disabled=false;
 });
+
+// ---- officials ----
+function refTab(which){ $("rt-need").setAttribute("aria-pressed",which==="need"); $("rt-list").setAttribute("aria-pressed",which==="list"); $("rp-need").hidden=which!=="need"; $("rp-list").hidden=which!=="list"; if(which==="list")renderRoster(); else loadNeeds(); }
+$("rt-need").onclick=()=>refTab("need"); $("rt-list").onclick=()=>refTab("list");
+$("refBtn").onclick=()=>{ $("oerr").textContent=""; showSheet("refSheet"); refTab("need"); };
+let needGames=[];
+async function loadNeeds(){
+  $("needList").innerHTML='<p class="small muted">Loading…</p>';
+  try{
+    const end=new Date(); end.setDate(end.getDate()+120); const to=iso(end);
+    const [gs,as]=await Promise.all([gamesCol().where("date",">=",todayIso).where("date","<=",to).get(), asgCol().where("date",">=",todayIso).where("date","<=",to).get()]);
+    const A={}; as.docs.forEach(d=>A[d.id]=d.data());
+    needGames=gs.docs.map(d=>Object.assign({id:d.id},d.data())).filter(needsRefs).sort(sortGames);
+    const rows=needGames.map(g=>{ const sl=(A[g.id]&&A[g.id].slots)||[]; const n=slotsFor(g); const f=sl.filter(x=>x&&x.name).length, c=sl.filter(x=>x&&x.name&&x.confirmed).length; if(f>=n&&c>=n)return "";
+      const st=f<n?(n-f)+" needed":(f-c)+" unconfirmed";
+      return `<button class="nrow" data-nid="${esc(g.id)}"><span><b>${esc(fmtDate(g.date))}</b> · ${esc(g.time||"TBA")} · ${esc(g.team)} vs. ${esc(g.opp)}<small>${sl.filter(x=>x.name).map(x=>esc(x.name)+(x.confirmed?" (confirmed)":" (unconfirmed)")).join(", ")||"No officials yet"}</small></span><span class="nstat">${st}</span></button>`; }).join("");
+    $("needList").innerHTML=rows||'<p class="small muted">Every home game in the next 4 months has its officials set and confirmed.</p>';
+    if(rows)$("needList").insertAdjacentHTML("afterbegin",'<p class="small muted">Showing the next 4 months.</p>');
+    asgCache=A;
+  }catch(e){ $("needList").innerHTML='<p class="err">Couldn\'t load games. Check your connection.</p>'; }
+}
+let asgCache={};
+$("needList").addEventListener("click",e=>{ const b=e.target.closest("[data-nid]"); if(!b)return; const g=needGames.find(x=>x.id===b.dataset.nid); if(!g)return;
+  if(!asg[g.id]&&asgCache[g.id])asg[g.id]=asgCache[g.id]; openSheet(g); });
+function renderRoster(){
+  $("refRoster").innerHTML=roster.length?`<div class="rrow" style="font-weight:700;color:var(--muted)"><span>Name</span><span>Phone</span><span>Email</span><span></span></div>`+roster.map(r=>`<div class="rrow" data-rid="${esc(r.id)}"><input type="text" data-f="name" value="${esc(r.name||"")}" aria-label="Name"><input type="text" data-f="phone" value="${esc(r.phone||"")}" aria-label="Phone"><input type="text" data-f="email" value="${esc(r.email||"")}" aria-label="Email"><button class="btn" data-del="${esc(r.id)}">Remove</button></div>`).join(""):'<p class="small muted">No officials yet. Add one above, import a CSV, or type names on a game.</p>';
+}
+$("refRoster").addEventListener("change",async e=>{ const i=e.target.closest("input[data-f]"); if(!i)return; const id=i.closest("[data-rid]").dataset.rid; try{ await rosterCol().doc(id).update({[i.dataset.f]:i.value.trim()}); toast("Saved"); }catch(_){ toast("Couldn't save. Check your connection."); } });
+$("refRoster").addEventListener("click",async e=>{ const b=e.target.closest("[data-del]"); if(!b)return; const r=roster.find(x=>x.id===b.dataset.del); if(!r||!confirm("Remove "+r.name+" from the officials list? Games they're already on keep their name."))return; try{ await rosterCol().doc(r.id).delete(); toast("Removed "+r.name); }catch(_){ toast("Couldn't remove. Check your connection."); } });
+$("o-add").onclick=async()=>{ const name=$("o-name").value.trim(); $("oerr").textContent=""; if(!name){ $("oerr").textContent="Type a name."; return; }
+  if(roster.some(r=>String(r.name).toLowerCase()===name.toLowerCase())){ $("oerr").textContent=name+" is already on the list."; return; }
+  try{ await rosterCol().add({name,phone:$("o-phone").value.trim(),email:$("o-email").value.trim()}); $("o-name").value=$("o-phone").value=$("o-email").value=""; toast("Added "+name); }catch(_){ $("oerr").textContent="Couldn't add. Check your connection."; } };
+$("o-file").addEventListener("change",async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f)return; $("oerr").textContent="";
+  try{ const rows=parseCSV(await f.text()); if(!rows.length)throw 0; const h=rows[0].map(x=>String(x).toLowerCase().replace(/[^a-z]/g,"")); const ni=h.indexOf("name"), pi=h.indexOf("phone"), ei=h.indexOf("email");
+    if(ni<0){ $("oerr").textContent="That file needs a name column."; return; }
+    const byName=new Map(roster.map(r=>[String(r.name).toLowerCase(),r])); const b=fdb.batch(); let added=0, updated=0;
+    rows.slice(1).forEach(r=>{ const name=String(r[ni]||"").trim(); if(!name)return; const phone=pi>=0?String(r[pi]||"").trim():"", email=ei>=0?String(r[ei]||"").trim():""; const ex=byName.get(name.toLowerCase());
+      if(ex){ const up={}; if(phone&&phone!==ex.phone)up.phone=phone; if(email&&email!==ex.email)up.email=email; if(Object.keys(up).length){ b.update(rosterCol().doc(ex.id),up); updated++; } }
+      else { b.set(rosterCol().doc(),{name,phone,email}); byName.set(name.toLowerCase(),{}); added++; } });
+    await b.commit(); toast(added+" added, "+updated+" updated");
+  }catch(_){ $("oerr").textContent="Couldn't read that file. Save it as CSV and try again."; } });
+
+// ---- game confirmations ----
+const schCol=()=>fdb.collection("schools");
+const cfgDoc=()=>fdb.collection("mailcfg").doc("settings");
+const DEF_SUBJ="Game confirmation: Sandoval and {school}, week of {week}";
+const DEF_BODY="Hello,\n\nI'm confirming the following game(s) between Sandoval and {school} for the week of {week}:\n\n{games}\n\nPlease let us know if anything doesn't match your schedule.\n\nThank you,\nSandoval Athletics\nad@sandoval501.org";
+let schools=[], mailCfg={}, unsubSch=null, cfPlan=[];
+const nk=t=>String(t||"").toLowerCase().replace(/\s*\(.*?\)\s*/g," ").replace(/[^a-z0-9/&]+/g," ").trim();
+function watchSchools(){
+  if(unsubSch){unsubSch();unsubSch=null;} schools=[];
+  if(!canEdit||!fdb)return;
+  unsubSch=schCol().onSnapshot(sn=>{ schools=sn.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(b.name)); if(!$("cfSheet").hidden&&!$("cp-sch").hidden)renderSchools(); },()=>{});
+}
+function findSchool(opp){ const k=nk(opp); if(!k)return null; return schools.find(sc=>[sc.name].concat(sc.aliases||[]).some(n=>nk(n)===k))||null; }
+function cfTab(w){ ["send","sch","set"].forEach(x=>{ $("ct-"+x).setAttribute("aria-pressed",x===w); $("cp-"+x).hidden=x!==w; }); if(w==="sch")renderSchools(); if(w==="set")loadCfg(); }
+$("ct-send").onclick=()=>cfTab("send"); $("ct-sch").onclick=()=>cfTab("sch"); $("ct-set").onclick=()=>cfTab("set");
+$("cf-close").addEventListener("click",closeSheet);
+function nextMonday(){ const d=new Date(todayIso+"T12:00:00"); const add=((8-d.getDay())%7)||7; d.setDate(d.getDate()+add); return iso(d); }
+$("cfBtn").onclick=async()=>{ $("cerr").textContent=""; $("c-plan").innerHTML=""; $("c-goWrap").hidden=true; $("c-week").value=nextMonday(); showSheet("cfSheet"); cfTab("send"); await loadCfg(true); };
+async function loadCfg(quiet){ try{ const d=await cfgDoc().get(); mailCfg=(d.exists&&d.data())||{}; }catch(_){ mailCfg={}; }
+  $("e-subj").value=mailCfg.subject||DEF_SUBJ; $("e-body").value=mailCfg.body||DEF_BODY; $("e-url").value=mailCfg.url||""; }
+$("e-save").onclick=async()=>{ $("eerr").textContent=""; const url=$("e-url").value.trim();
+  if(url&&!/^https:\/\/script\.google\.com\//.test(url)){ $("eerr").textContent="That link should start with https://script.google.com/"; return; }
+  try{ mailCfg={subject:$("e-subj").value,body:$("e-body").value,url}; await cfgDoc().set(mailCfg); toast("Email setup saved"); }catch(_){ $("eerr").textContent="Couldn't save. Check your connection."; } };
+function weekLabel(mon){ const a=new Date(mon+"T12:00:00"), b=new Date(a); b.setDate(b.getDate()+6); return (a.getMonth()+1)+"/"+a.getDate()+" – "+(b.getMonth()+1)+"/"+b.getDate(); }
+const gameLine=g=>fmtDate(g.date)+" · "+(g.time||"TBA")+" · "+g.team+" · "+(g.ha==="A"?"Away (at "+g.opp+")":"Home (at Sandoval)");
+const fill=(t,sc,wk,gl)=>String(t).replace(/\{school\}/g,sc).replace(/\{week\}/g,wk).replace(/\{games\}/g,gl);
+$("c-prev").onclick=async()=>{
+  const mon=$("c-week").value; $("cerr").textContent=""; $("c-goWrap").hidden=true; cfPlan=[];
+  if(!mon){ $("cerr").textContent="Pick the Monday the week starts on."; return; }
+  const end=new Date(mon+"T12:00:00"); end.setDate(end.getDate()+6);
+  $("c-plan").innerHTML='<p class="small muted">Loading…</p>';
+  try{
+    const sn=await gamesCol().where("date",">=",mon).where("date","<=",iso(end)).get();
+    const all=sn.docs.map(d=>Object.assign({id:d.id},d.data())).sort(sortGames);
+    const left=[], nomatch=[], by=new Map();
+    all.forEach(g=>{ if(g.cancelled){ left.push([g,"cancelled"]); return; } if(SKIP.test(g.opp)||SKIP.test(g.team)){ left.push([g,"tournament or event"]); return; }
+      const sc=findSchool(g.opp); if(!sc){ nomatch.push(g); return; } if(!by.has(sc.id))by.set(sc.id,{sc,games:[]}); by.get(sc.id).games.push(g); });
+    cfPlan=[...by.values()].sort((a,b)=>String(a.sc.name).localeCompare(b.sc.name));
+    let h="";
+    if(!all.length)h='<p class="small muted">No games that week.</p>';
+    h+=cfPlan.map((p,i)=>`<div class="cfs"><div class="h"><label><input type="checkbox" data-ci="${i}"${p.sc.email?" checked":" disabled"}> ${esc(p.sc.name)}</label><span class="em">${p.sc.email?esc(p.sc.email):"No email on file. Add one under Schools."}</span></div><ul>${p.games.map(g=>`<li>${esc(gameLine(g))}</li>`).join("")}</ul></div>`).join("");
+    if(nomatch.length)h+=`<div class="cfs"><div class="h">Not sent: no school on file for these opponents</div><ul>${nomatch.map(g=>`<li>${esc(gameLine(g))} <button class="btn" style="padding:1px 8px;font-size:12px" data-addsch="${esc(g.opp)}">Add school</button></li>`).join("")}</ul></div>`;
+    if(left.length)h+=`<div class="cfs"><div class="h">Left out</div><ul>${left.map(([g,why])=>`<li>${esc(gameLine(g))} (${why})</li>`).join("")}</ul></div>`;
+    $("c-plan").innerHTML=h; syncCfGo();
+  }catch(_){ $("c-plan").innerHTML=""; $("cerr").textContent="Couldn't load that week. Check your connection."; }
+};
+function syncCfGo(){ const n=document.querySelectorAll("#c-plan input[data-ci]:checked").length; $("c-goWrap").hidden=!n; $("c-go").textContent="Send "+n+" email"+(n===1?"":"s"); }
+$("c-plan").addEventListener("change",syncCfGo);
+$("c-plan").addEventListener("click",e=>{ const b=e.target.closest("[data-addsch]"); if(!b)return; cfTab("sch"); $("s-name").value=b.dataset.addsch; $("s-email").focus(); });
+async function sendMail(emails){
+  if(!mailCfg.url)throw new Error("Add the email sender link under Email setup first.");
+  const token=await fauth.currentUser.getIdToken();
+  const r=await fetch(mailCfg.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({idToken:token,emails})});
+  const j=await r.json(); if(!j.ok)throw new Error(j.error||"The email sender refused the request."); return j;
+}
+$("c-go").onclick=async()=>{
+  const picks=[...document.querySelectorAll("#c-plan input[data-ci]:checked")].map(x=>cfPlan[+x.dataset.ci]);
+  if(!picks.length)return; if(!confirm("Send "+picks.length+" confirmation email"+(picks.length===1?"":"s")+" now?"))return;
+  const wk=weekLabel($("c-week").value), subj=mailCfg.subject||DEF_SUBJ, body=mailCfg.body||DEF_BODY;
+  const emails=picks.map(p=>({to:p.sc.email,subject:fill(subj,p.sc.name,wk,""),body:fill(body,p.sc.name,wk,p.games.map(gameLine).join("\n"))}));
+  $("c-go").disabled=true; $("cerr").textContent="";
+  try{ const j=await sendMail(emails); const bad=(j.failed||[]);
+    toast("Sent "+(j.sent||0)+" email"+(j.sent===1?"":"s")); if(bad.length)$("cerr").textContent="These didn't send: "+bad.join(", ");
+  }catch(e){ $("cerr").textContent=e.message||"Couldn't send. Check your connection."; }
+  $("c-go").disabled=false;
+};
+$("e-test").onclick=async()=>{ $("eerr").textContent=""; mailCfg.url=$("e-url").value.trim(); const wk=weekLabel(nextMonday());
+  const sample=[{date:nextMonday(),time:"6:00 PM",team:"HS Boys Basketball",ha:"H",opp:"Example School"}];
+  try{ const j=await sendMail([{to:"ad@sandoval501.org",subject:"TEST - "+fill($("e-subj").value,"Example School",wk,""),body:fill($("e-body").value,"Example School",wk,sample.map(gameLine).join("\n"))}]); toast(j.sent?"Test sent to ad@sandoval501.org":"Test didn't send"); }
+  catch(e){ $("eerr").textContent=e.message||"Couldn't send the test."; } };
+function renderSchools(){
+  $("schList").innerHTML=schools.length?`<div class="srow" style="font-weight:700;color:var(--muted)"><span>School</span><span>AD email</span><span>Other names</span><span></span></div>`+schools.map(sc=>`<div class="srow" data-sid="${esc(sc.id)}"><input type="text" data-f="name" value="${esc(sc.name||"")}" aria-label="School"><input type="text" data-f="email" value="${esc(sc.email||"")}" aria-label="AD email"><input type="text" data-f="aliases" value="${esc((sc.aliases||[]).join(", "))}" aria-label="Other names"><button class="btn" data-sdel="${esc(sc.id)}">Remove</button></div>`).join(""):'<p class="small muted">No schools yet. Add one above or import a CSV.</p>';
+}
+const splitNames=(t,sep)=>String(t||"").split(sep).map(x=>x.trim()).filter(Boolean);
+$("schList").addEventListener("change",async e=>{ const i=e.target.closest("input[data-f]"); if(!i)return; const id=i.closest("[data-sid]").dataset.sid; const v=i.dataset.f==="aliases"?splitNames(i.value,","):i.value.trim();
+  try{ await schCol().doc(id).update({[i.dataset.f]:v}); toast("Saved"); }catch(_){ toast("Couldn't save. Check your connection."); } });
+$("schList").addEventListener("click",async e=>{ const b=e.target.closest("[data-sdel]"); if(!b)return; const sc=schools.find(x=>x.id===b.dataset.sdel); if(!sc||!confirm("Remove "+sc.name+"?"))return; try{ await schCol().doc(sc.id).delete(); toast("Removed "+sc.name); }catch(_){ toast("Couldn't remove. Check your connection."); } });
+$("s-add").onclick=async()=>{ const name=$("s-name").value.trim(), email=$("s-email").value.trim(); $("serr").textContent="";
+  if(!name){ $("serr").textContent="Type the school name."; return; }
+  if(schools.some(x=>nk(x.name)===nk(name))){ $("serr").textContent=name+" is already on the list."; return; }
+  try{ await schCol().add({name,email,aliases:splitNames($("s-alias").value,",")}); $("s-name").value=$("s-email").value=$("s-alias").value=""; toast("Added "+name); }catch(_){ $("serr").textContent="Couldn't add. Check your connection."; } };
+$("s-file").addEventListener("change",async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f)return; $("serr").textContent="";
+  try{ const rows=parseCSV(await f.text()); const h=rows[0].map(x=>String(x).toLowerCase().replace(/[^a-z]/g,"")); const ni=h.indexOf("school"), ei=h.indexOf("email"), ai=h.indexOf("othernames");
+    if(ni<0){ $("serr").textContent="That file needs a school column."; return; }
+    const byName=new Map(schools.map(x=>[nk(x.name),x])); const b=fdb.batch(); let added=0, updated=0;
+    rows.slice(1).forEach(r=>{ const name=String(r[ni]||"").trim(); if(!name)return; const email=ei>=0?String(r[ei]||"").trim():""; const al=ai>=0?splitNames(r[ai],";"):[]; const ex=byName.get(nk(name));
+      if(ex){ const up={}; if(email&&email!==ex.email)up.email=email; if(al.length)up.aliases=[...new Set((ex.aliases||[]).concat(al))]; if(Object.keys(up).length){ b.update(schCol().doc(ex.id),up); updated++; } }
+      else { b.set(schCol().doc(),{name,email,aliases:al}); byName.set(nk(name),{}); added++; } });
+    await b.commit(); toast(added+" added, "+updated+" updated");
+  }catch(_){ $("serr").textContent="Couldn't read that file. Save it as CSV and try again."; } });
 
 // ---- export PDF ----
 $("exportBtn").onclick=()=>{
@@ -539,16 +792,19 @@ $("x-go").onclick=async()=>{
     if(type==="travel")list=list.filter(g=>g.ha==="A");
     if(type==="ics"){ list.sort(sortGames); downloadIcs(list,team); closeSheet(); $("x-go").disabled=false; return; }
     list.sort(sortGames);
+    const withOff=canEdit&&type==="full"&&$("x-off").checked; let XA={};
+    if(withOff){ const as=await asgCol().where("date",">=",from).where("date","<=",to).get(); as.docs.forEach(d=>XA[d.id]=d.data()); }
+    const offTxt=g=>{ const sl=(XA[g.id]&&XA[g.id].slots)||[]; return sl.filter(x=>x.name).map(x=>esc(x.name)+(x.confirmed?"":" (unconfirmed)")).join(", "); };
     const title=type==="travel"?"Travel Schedule":"Athletics Schedule";
     const range=fmtDate(from)+" – "+fmtDate(to)+(team?" · "+team:"");
-    const cols=type==="travel"?["Date","Team","Opponent","Game time","Bus departs"]:["Date","Time","Team","H/A","Opponent / event","Facility","Bus departs"];
+    const cols=type==="travel"?["Date","Team","Opponent","Game time","Bus departs"]:["Date","Time","Team","H/A","Opponent / event","Facility","Bus departs"].concat(withOff?["Officials"]:[]);
     let rows="", lastM="";
     list.forEach(g=>{
       const mk=g.date.slice(0,7); if(mk!==lastM){ lastM=mk; const d=new Date(g.date+"T12:00:00"); rows+=`<tr class="pm"><td colspan="${cols.length}">${MN[d.getMonth()]} ${d.getFullYear()}</td></tr>`; }
       const dt=esc(fmtDate(g.date))+(g.tent?" (may change)":"")+(g.cancelled?' <b class="nb">CANCELLED</b>':"");
       rows+= type==="travel"
         ? `<tr><td>${dt}</td><td>${esc(g.team)}</td><td>${esc(g.opp)}</td><td>${esc(g.time||"TBA")}</td><td>${g.cancelled?"—":g.depart?esc(g.depart):'<span class="nb">Not set</span>'}</td></tr>`
-        : `<tr><td>${dt}</td><td>${esc(g.time||"TBA")}</td><td>${esc(g.team)}</td><td>${g.ha==="A"?"Away":"Home"}</td><td>${esc(g.opp)}</td><td>${esc(g.facility||"")}</td><td>${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
+        : `<tr><td>${dt}</td><td>${esc(g.time||"TBA")}</td><td>${esc(g.team)}</td><td>${g.ha==="A"?"Away":"Home"}</td><td>${esc(g.opp)}</td><td>${esc(g.facility||"")}</td><td>${g.ha==="A"?esc(g.depart||""):""}</td>${withOff?`<td>${g.ha==="H"?offTxt(g):""}</td>`:""}</tr>`;
     });
     if(!list.length)rows=`<tr><td colspan="${cols.length}">No games in this range.</td></tr>`;
     $("print").innerHTML=`<div class="ph"><img src="${LOGO}" alt=""><div><h1>Sandoval ${title}</h1><p>${esc(range)}</p></div></div><table class="pt"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
@@ -609,9 +865,9 @@ const key=(d,t,o)=>d+"|"+String(t).trim().toLowerCase()+"|"+String(o).trim().toL
 $("i-file").onchange=async()=>{
   const f=$("i-file").files[0]; if(!f)return; $("ierr").textContent=""; $("i-go").disabled=true;
   const rows=parseCSV(await f.text()); if(rows.length<2){ $("ierr").textContent="That file has no rows."; return; }
-  const H=rows[0].map(h=>h.trim().toLowerCase().replace(/[^a-z]/g,""));
+  const H=rows[0].map(h=>h.trim().toLowerCase().replace(/[^a-z0-9]/g,""));
   const ix=n=>H.indexOf(n);
-  const c={date:ix("date"),team:ix("team"),opp:ix("opponent"),time:ix("time"),ha:ix("homeaway"),fac:ix("facility"),depart:ix("busdeparts"),tent:ix("maychange"),cx:ix("cancelled")};
+  const c={date:ix("date"),team:ix("team"),opp:ix("opponent"),time:ix("time"),ha:ix("homeaway"),fac:ix("facility"),depart:ix("busdeparts"),tent:ix("maychange"),cx:ix("cancelled"),of:[ix("official1"),ix("official2"),ix("official3")],oc:ix("officialsconfirmed")};
   if(c.date<0||c.team<0||c.opp<0){ $("ierr").textContent="The file needs date, team, and opponent columns."; return; }
   const items=[], bad=[];
   rows.slice(1).forEach((r,i)=>{ const d=normDate(r[c.date]||""); if(!d||!(r[c.team]||"").trim()||!(r[c.opp]||"").trim()){bad.push("Row "+(i+2)+": missing or unreadable date, team, or opponent");return;}
@@ -622,7 +878,9 @@ $("i-file").onchange=async()=>{
     if(c.depart>=0&&r[c.depart].trim())fields.depart=r[c.depart].trim();
     if(c.tent>=0&&r[c.tent].trim())fields.tent=/^(y|yes|true|1)$/i.test(r[c.tent].trim());
     if(c.cx>=0&&r[c.cx]&&r[c.cx].trim())fields.cancelled=/^(y|yes|true|1)$/i.test(r[c.cx].trim());
-    items.push({date:d,team:r[c.team].trim(),opp:r[c.opp].trim(),fields}); });
+    let offs=null; if(c.of.some(x=>x>=0)){ offs=c.of.map(x=>x>=0?String(r[x]||"").trim():"").slice(0,slotsFor({team:r[c.team]})); if(!offs.some(Boolean))offs=null; }
+    const offConf=c.oc>=0&&r[c.oc]?/^(y|yes|true|1)$/i.test(r[c.oc].trim()):false;
+    items.push({date:d,team:r[c.team].trim(),opp:r[c.opp].trim(),fields,offs,offConf}); });
   if(!items.length){ $("ierr").textContent="No usable rows in that file."; return; }
   const dates=items.map(x=>x.date).sort();
   try{
@@ -648,10 +906,19 @@ $("i-go").onclick=async()=>{
   try{
     const ops=[];
     const before=[];
-    plan.upd.forEach(u=>{ before.push({id:u.id,d:plan.prev[u.id]||null}); ops.push(b=>b.update(gamesCol().doc(u.id),u.x.fields)); });
-    adds.forEach(x=>{ const r=gamesCol().doc(); before.push({id:r.id,d:null}); ops.push(b=>b.set(r,Object.assign({date:x.date,team:x.team,opp:x.opp,time:"",facility:"",depart:"",tent:false},x.fields))); });
+    plan.upd.forEach(u=>{ before.push({id:u.id,d:plan.prev[u.id]||null}); if(Object.keys(u.x.fields).length)ops.push(b=>b.update(gamesCol().doc(u.id),u.x.fields)); });
+    const offRows=[];
+    plan.upd.forEach(u=>{ if(u.x.offs)offRows.push({id:u.id,x:u.x}); });
+    adds.forEach(x=>{ const r=gamesCol().doc(); before.push({id:r.id,d:null}); if(x.offs)offRows.push({id:r.id,x}); ops.push(b=>b.set(r,Object.assign({date:x.date,team:x.team,opp:x.opp,time:"",facility:"",depart:"",tent:false},x.fields))); });
+    if(offRows.length){
+      const ds=offRows.map(o=>o.x.date).sort();
+      const prevSnap=await asgCol().where("date",">=",ds[0]).where("date","<=",ds[ds.length-1]).get();
+      const prevA={}; prevSnap.docs.forEach(d=>prevA[d.id]=JSON.parse(JSON.stringify(d.data())));
+      offRows.forEach(o=>{ const slots=o.x.offs.map(n=>({name:n,confirmed:!!(n&&o.x.offConf)})); before.push({col:"refAssign",id:o.id,d:prevA[o.id]||null}); ops.push(b=>b.set(asgCol().doc(o.id),{date:o.x.date,slots})); });
+    }
     for(let i=0;i<ops.length;i+=400){ const b=fdb.batch(); ops.slice(i,i+400).forEach(f=>f(b)); await b.commit(); }
     await addTeams(adds.map(x=>x.team));
+    if(offRows.length)await addRosterNames([].concat(...offRows.map(o=>o.x.offs)));
     await record("import ("+plan.upd.length+" updated"+(adds.length?", "+adds.length+" added":"")+")",before);
     toast("Updated "+plan.upd.length+(adds.length?", added "+adds.length:"")+" games"); closeSheet();
   }catch(e){ $("ierr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't apply the file. Try again."; }
@@ -663,9 +930,11 @@ $("backupBtn").onclick=async()=>{
   if(!canEdit||!fdb)return; $("backupBtn").disabled=true;
   try{
     const snap=await gamesCol().get();
-    const list=snap.docs.map(d=>d.data()).sort(sortGames);
-    const lines=[["date","team","opponent","time","home_away","facility","bus_departs","may_change","cancelled"].join(",")];
-    list.forEach(g=>lines.push([g.date,g.team,g.opp,g.time,g.ha==="A"?"Away":"Home",g.facility,g.depart,g.tent?"yes":"no",g.cancelled?"yes":"no"].map(csvCell).join(",")));
+    const list=snap.docs.map(d=>Object.assign({_id:d.id},d.data())).sort(sortGames);
+    const lines=[["date","team","opponent","time","home_away","facility","bus_departs","may_change","cancelled","official_1","official_2","official_3","officials_confirmed"].join(",")];
+    const aSnap=await asgCol().get(); const A={}; aSnap.docs.forEach(d=>A[d.id]=d.data());
+    list.forEach(g=>{ const sl=(A[g._id]&&A[g._id].slots)||[]; const allConf=sl.length&&sl.filter(x=>x.name).every(x=>x.confirmed);
+      lines.push([g.date,g.team,g.opp,g.time,g.ha==="A"?"Away":"Home",g.facility,g.depart,g.tent?"yes":"no",g.cancelled?"yes":"no",(sl[0]||{}).name||"",(sl[1]||{}).name||"",(sl[2]||{}).name||"",sl.some(x=>x.name)?(allConf?"yes":"no"):""].map(csvCell).join(",")); });
     const blob=new Blob([lines.join("\n")+"\n"],{type:"text/csv"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="sandoval-schedule-backup-"+todayIso+".csv";
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
@@ -799,7 +1068,7 @@ $("d-go").onclick=async()=>{
   const gone=[].concat(...dplan.map(g=>g.games.filter(x=>!x.keep))); if(!gone.length||!canEdit)return;
   $("d-go").disabled=true;
   try{
-    for(let i=0;i<gone.length;i+=400){ const b=fdb.batch(); gone.slice(i,i+400).forEach(g=>b.delete(gamesCol().doc(g.id))); await b.commit(); }
+    for(let i=0;i<gone.length;i+=400){ const b=fdb.batch(); gone.slice(i,i+400).forEach(g=>{ b.delete(gamesCol().doc(g.id)); b.delete(asgCol().doc(g.id)); }); await b.commit(); }
     await record("remove "+gone.length+" duplicate"+(gone.length===1?"":"s"),gone.map(g=>({id:g.id,d:clean(Object.assign({},g,{keep:undefined}))})));
     toast("Removed "+gone.length+" games"); closeSheet();
   }catch(e){ $("derr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't remove them. Try again."; $("d-go").disabled=false; }
@@ -812,7 +1081,7 @@ $("undoBtn").onclick=async()=>{
   undoArmed=false; b.disabled=true;
   try{
     const ops=top.before;
-    for(let i=0;i<ops.length;i+=400){ const bt=fdb.batch(); ops.slice(i,i+400).forEach(o=>{ const r=gamesCol().doc(o.id); if(o.d)bt.set(r,o.d); else bt.delete(r); }); await bt.commit(); }
+    for(let i=0;i<ops.length;i+=400){ const bt=fdb.batch(); ops.slice(i,i+400).forEach(o=>{ const r=fdb.collection(o.col||"games").doc(o.id); if(o.d)bt.set(r,o.d); else bt.delete(r); }); await bt.commit(); }
     await histDoc().set({items:history.slice(1)});
     toast("Undid: "+top.label);
   }catch(e){ toast(denied(e)?"You don't have permission to change the schedule.":"Couldn't undo. Try again."); }
