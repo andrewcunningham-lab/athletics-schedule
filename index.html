@@ -145,6 +145,19 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 .srow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr) auto;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--line);font-size:13.5px}
 .srow input{width:100%}
 textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;width:100%;box-sizing:border-box}
+.wrow{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:8px;align-items:center}
+.wrow .n{font-weight:700;font-size:13px}
+.wrow label{flex-direction:row;align-items:center;gap:5px;font-size:13px;white-space:nowrap}
+.wrow.off input[type=text]{opacity:.45}
+.wg{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.wg .t{font-weight:700}
+.wg .t small{font-weight:400;color:var(--muted)}
+.slots{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.slot{font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:3px 8px;background:var(--surface)}
+.slot b{font-weight:700}
+button.slot.open{border:1.5px dashed var(--ink);cursor:pointer;font-weight:700}
+button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
+.btn.mini{padding:2px 9px;font-size:12.5px;margin-left:6px}
 .btn.undo{border-color:var(--ink);font-weight:700;max-width:340px;overflow:hidden;text-overflow:ellipsis}
 .ipv{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px}
 .ipv ul{margin:6px 0 0;padding-left:18px;max-height:220px;overflow:auto}
@@ -200,6 +213,7 @@ textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px
     <label class="lbl" for="fTeam">Team</label>
     <select id="fTeam"><option value="">All teams</option></select>
     <span class="spacer"></span>
+    <button class="btn" id="wkBtn">Sign up to work</button>
     <button class="btn" id="exportBtn">Export</button>
     <button class="btn" id="fileBtn" hidden>Import file</button>
     <button class="btn" id="mirrorBtn" hidden>Mirror season</button>
@@ -249,10 +263,14 @@ textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px
     </div>
     <label><span class="lbl">Opponent or event</span><input type="text" id="g-opp" required></label>
     <fieldset id="offWrap" class="offs" hidden>
-      <legend class="lbl">Officials <span class="small muted">(only you and Ryan can see these)</span></legend>
+      <legend class="lbl">Officials <span class="small muted">(only you, Ryan, and Cara can see these)</span></legend>
       <div id="offSlots"></div>
     </fieldset>
     <datalist id="refNames"></datalist>
+    <fieldset id="wkWrap" class="offs" hidden>
+      <legend class="lbl">Workers <span class="small muted">(uncheck Needed for positions this game doesn't use)</span></legend>
+      <div id="wkSlots"></div>
+    </fieldset>
     <label id="departWrap"><span class="lbl">Bus departs</span><input type="text" id="g-depart" placeholder="e.g. 4:15 PM"></label>
     <label class="chk"><input type="checkbox" id="g-tent"> Date may change</label>
     <label class="chk"><input type="checkbox" id="g-cancel"> Cancelled (game stays on the schedule and still gets mirrored)</label>
@@ -285,6 +303,7 @@ textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px
   <h3 id="impTitle">Import file</h3>
   <div class="form">
     <p class="small muted">Officials can come in the same file: add <b>official_1</b>, <b>official_2</b>, <b>official_3</b> columns, plus an optional <b>officials_confirmed</b> column (yes or no).</p>
+    <p class="small muted">Workers can come in the same file too: <b>admin</b>, <b>scorebook</b>, <b>main_clock</b>, <b>clock_2</b>, <b>gate</b>, <b>concessions</b>, <b>nurse</b>. Put N/A to mark a position as not needed.</p>
     <p class="small muted">Load a CSV file from Claude. Each row is matched to a game by date, team, and opponent. Matching games get the values in the file, and rows that don't match can be added as new games.</p>
     <label><span class="lbl">CSV file</span><input type="file" id="i-file" accept=".csv,text/csv"></label>
     <div id="i-preview"></div>
@@ -325,6 +344,13 @@ textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px
     <p class="err" id="derr"></p>
     <div class="row"><button class="btn primary" id="d-go" disabled>Remove unchecked games</button><button class="btn" id="d-cancel">Close</button></div>
   </div>
+</aside>
+<aside class="sheet wide" id="wkSheet" hidden role="dialog" aria-labelledby="wkTitle">
+  <h3 id="wkTitle">Sign up to work</h3>
+  <p class="small muted" id="wkNote">Home games in the next 60 days. Sign in with Google, then click an open spot to take it.</p>
+  <div id="wkMine"></div>
+  <div id="wkList"></div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="wk-close">Close</button></div>
 </aside>
 <aside class="sheet wide" id="refSheet" hidden role="dialog" aria-labelledby="refTitle">
   <h3 id="refTitle">Officials</h3>
@@ -392,6 +418,14 @@ const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const todayIso=iso(new Date());
 const EDITOR_EMAIL="ad@sandoval501.org";
+const REF_VIEWERS=["ad@sandoval501.org","cara.garner@sandoval501.org"];
+const POS=[["admin","Admin"],["book","Scorebook"],["clock","Main Clock"],["clock2","Clock 2"],["gate","Gate"],["conc","Concessions"],["nurse","Nurse"]];
+const POSL=Object.fromEntries(POS);
+const SIGNABLE=["admin","book","clock","clock2","gate","conc"];
+let canSeeRefs=false, me=null, su={}, unsubSu=null;
+function defaultPos(g){ const t=g.team||""; if(/music/i.test(t))return []; if(/baseball|softball/i.test(t)||/^all/i.test(t)||/meet the/i.test(g.opp||""))return ["admin","conc"]; if(/^HS\b.*basketball/i.test(t))return ["admin","book","clock","clock2","gate","conc"]; return ["admin","book","clock","gate","conc"]; }
+const posFor=g=>Array.isArray(g.pos)?g.pos:defaultPos(g);
+const hasWork=g=>g.ha==="H"&&!g.cancelled&&g.team!=="Music";
 const LOGO=document.querySelector(".brand img").src;
 let games=[], teamList=[], canEdit=false, view="cal", editingId=null, loaded=false, metaExists=null;
 let cur=new Date(); cur.setDate(1);
@@ -436,7 +470,7 @@ function renderCal(){
     const shown=all.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team));
     h+=`<div class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canEdit?`<button class="add" data-add="${key}" aria-label="Add game on ${MN[m]} ${d}">+</button>`:""}</div>`+
       `<div class="fac">${used.map(k=>`<span class="flag ${FAC[k].c}">${FAC[k].l}</span>`).join("")}</div>`+
-      shown.map(g=>`<button class="ev${g.tent?" tent":""}${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}">${g.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}${canEdit&&needsRefs(g)?" · "+refLabel(g):""}</span></button>`).join("")+
+      shown.map(g=>`<button class="ev${g.tent?" tent":""}${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}">${g.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}${canSeeRefs&&needsRefs(g)?" · "+refLabel(g):""}</span></button>`).join("")+
       `</div>`;
   }
   const tail=(7-((start+days)%7))%7; for(let i=0;i<tail;i++)h+=`<div class="day out"></div>`;
@@ -448,12 +482,12 @@ function renderList(){
   if(!list.length){ $("rows").innerHTML=`<tr><td colspan="7"><div class="empty"><b>No games this month</b>${games.length?"Change the filters to see more.":"Use the arrows to move to another month."}</div></td></tr>`; return; }
   $("rows").innerHTML=list.map(g=>{
     const fc=FAC[g.facility]?FAC[g.facility].c:"";
-    return `<tr data-id="${esc(g.id)}"${g.cancelled?' class="cancel"':""}><td class="d">${fmtDate(g.date)}${g.cancelled?'<div><span class="cx">CANCELLED</span></div>':""}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td class="strike">${esc(g.team)}${canEdit&&needsRefs(g)?`<div class="tentnote">${refLabel(g)}</div>`:""}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td class="strike">${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
+    return `<tr data-id="${esc(g.id)}"${g.cancelled?' class="cancel"':""}><td class="d">${fmtDate(g.date)}${g.cancelled?'<div><span class="cx">CANCELLED</span></div>':""}${g.tent?'<div class="tentnote">May change</div>':""}</td><td class="d">${esc(g.time||"TBA")}</td><td class="strike">${esc(g.team)}${canSeeRefs&&needsRefs(g)?`<div class="tentnote">${refLabel(g)}</div>`:""}</td><td><span class="pill ${g.ha}">${g.ha==="A"?"Away":"Home"}</span></td><td class="strike">${esc(g.opp)}</td><td>${g.facility?`<span class="pill ${fc}">${esc(g.facility)}</span>`:""}</td><td class="d">${g.ha==="A"?esc(g.depart||""):""}</td></tr>`;
   }).join("");
 }
 
 // ---- sheets ----
-const SHEETS=["sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet"];
+const SHEETS=["wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; }
 function openSheet(g,date){
@@ -464,11 +498,16 @@ function openSheet(g,date){
     $("g-date").value=g?g.date:(date||todayIso); $("g-time").value=g?g.time||"":"";
     $("g-team").value=g?g.team:""; $("g-ha").value=g?g.ha:"H"; $("g-fac").value=g?g.facility||"":"";
     $("g-opp").value=g?g.opp:""; $("g-depart").value=g?g.depart||"":""; $("g-tent").checked=!!(g&&g.tent); $("g-cancel").checked=!!(g&&g.cancelled);
-    $("delBtn").hidden=!g; syncDepart(); drawSlots(g); $("g-date").focus();
+    $("delBtn").hidden=!g; syncDepart(); drawSlots(g); drawWork(g); $("g-date").focus();
   } else {
-    $("form").hidden=true; $("ro").hidden=false; $("sheetTitle").textContent=g.team;
-    $("ro").innerHTML=`${g.cancelled?'<p style="margin:0 0 6px"><span class="cx" style="font-size:13px">CANCELLED</span> This game will not be played.</p>':""}<dl class="ro"><dt>Date</dt><dd>${fmtDate(g.date)}${g.tent?" (may change)":""}</dd><dt>Time</dt><dd>${esc(g.time||"TBA")}</dd><dt>Opponent or event</dt><dd>${esc(vs(g))}</dd>${g.facility?`<dt>Facility</dt><dd>${esc(g.facility)}</dd>`:""}${g.ha==="A"?`<dt>Bus departs</dt><dd>${esc(g.depart||"Not set")}</dd>`:""}</dl><div class="row" style="margin-top:16px"><button class="btn" id="roClose">Close</button></div>`;
+    $("form").hidden=true; $("ro").hidden=false; $("sheetTitle").textContent=g.team; roGame=g;
+    const offA=(canSeeRefs&&needsRefs(g)&&asg[g.id]&&asg[g.id].slots||[]).filter(x=>x.name);
+    const offHtml=canSeeRefs&&needsRefs(g)?`<dt>Officials</dt><dd>${offA.length?offA.map(x=>esc(x.name)+(x.confirmed?" (confirmed)":" (unconfirmed)")).join(", "):"None yet"}</dd>`:"";
+    const wl=hasWork(g)?posFor(g).concat(su[g.id]&&su[g.id].nurse?["nurse"]:[]):[];
+    const wkHtml=wl.length?`<div class="lbl" style="margin-top:14px">Workers</div><div class="slots" id="roSlots">${wl.map(k=>slotHtml(g,k,su)).join("")}</div>`:"";
+    $("ro").innerHTML=`${g.cancelled?'<p style="margin:0 0 6px"><span class="cx" style="font-size:13px">CANCELLED</span> This game will not be played.</p>':""}<dl class="ro"><dt>Date</dt><dd>${fmtDate(g.date)}${g.tent?" (may change)":""}</dd><dt>Time</dt><dd>${esc(g.time||"TBA")}</dd><dt>Opponent or event</dt><dd>${esc(vs(g))}</dd>${g.facility?`<dt>Facility</dt><dd>${esc(g.facility)}</dd>`:""}${g.ha==="A"?`<dt>Bus departs</dt><dd>${esc(g.depart||"Not set")}</dd>`:""}${offHtml}</dl>${wkHtml}<div class="row" style="margin-top:16px"><button class="btn" id="roClose">Close</button></div>`;
     $("roClose").onclick=closeSheet; $("roClose").focus();
+    const rs=$("roSlots"); if(rs)rs.onclick=async e=>{ const t=e.target.closest("[data-take],[data-drop]"); if(!t)return; const ok=t.dataset.take?await takeSlot(g,t.dataset.take,su):await dropSlot(g,t.dataset.drop,su); if(ok)openSheet(g); };
   }
 }
 function syncDepart(){ $("departWrap").hidden=$("g-ha").value!=="A"; syncOffWrap(); }
@@ -479,6 +518,17 @@ function drawSlots(g){
   syncOffWrap();
 }
 $("g-team").addEventListener("input",syncOffWrap);
+let wkTouched=false;
+function drawWork(g){
+  wkTouched=!!(g&&Array.isArray(g.pos));
+  const pos=g?posFor(g):defaultPos({team:""}); const cur=(g&&su[g.id])||{};
+  $("wkSlots").innerHTML=POS.map(([k,L])=>`<div class="wrow${k!=="nurse"&&!pos.includes(k)?" off":""}" data-k="${k}"><span class="n">${L}</span><input type="text" id="wk-${k}" value="${esc((cur[k]&&cur[k].name)||"")}" placeholder="${k==="nurse"?"Assigned by you":"Open"}">${k==="nurse"?"<span></span>":`<label><input type="checkbox" id="wn-${k}"${pos.includes(k)?" checked":""}> Needed</label>`}</div>`).join("");
+  syncWkWrap();
+}
+function syncWkWrap(){ $("wkWrap").hidden=!(canEdit&&$("g-ha").value==="H"&&$("g-team").value.trim()!=="Music"); }
+$("wkSlots").addEventListener("change",e=>{ if(e.target.id&&e.target.id.startsWith("wn-")){ wkTouched=true; e.target.closest(".wrow").classList.toggle("off",!e.target.checked); } });
+$("g-team").addEventListener("input",()=>{ syncWkWrap(); if(!wkTouched){ const d=defaultPos({team:$("g-team").value,opp:$("g-opp").value}); SIGNABLE.forEach(k=>{ const c=$("wn-"+k); if(c){ c.checked=d.includes(k); c.closest(".wrow").classList.toggle("off",!c.checked); } }); } });
+$("g-ha").addEventListener("change",syncWkWrap);
 $("g-ha").addEventListener("change",()=>{ syncDepart(); if($("g-ha").value==="A"&&$("g-fac").value)$("g-fac").value=""; });
 $("scrim").addEventListener("click",closeSheet);
 $("cancelBtn").addEventListener("click",closeSheet);
@@ -530,10 +580,40 @@ function refLabel(g){ const r=refStatus(g); if(r.done)return "Officials set"; re
 function watchRefs(){
   if(unsubAsg){unsubAsg();unsubAsg=null;} if(unsubRoster){unsubRoster();unsubRoster=null;}
   asg={}; roster=[];
-  if(!canEdit||!fdb)return;
+  if(!canSeeRefs||!fdb)return;
   const [a,b]=monthRange(cur);
   unsubAsg=asgCol().where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ asg={}; sn.docs.forEach(d=>asg[d.id]=d.data()); render(); },()=>{});
-  unsubRoster=rosterCol().onSnapshot(sn=>{ roster=sn.docs.map(d=>Object.assign({id:d.id},d.data())).sort((x,y)=>String(x.name).localeCompare(y.name)); $("refNames").innerHTML=roster.map(r=>`<option value="${esc(r.name)}">`).join(""); if(!$("refSheet").hidden&&!$("rp-list").hidden)renderRoster(); },()=>{});
+  if(canEdit)unsubRoster=rosterCol().onSnapshot(sn=>{ roster=sn.docs.map(d=>Object.assign({id:d.id},d.data())).sort((x,y)=>String(x.name).localeCompare(y.name)); $("refNames").innerHTML=roster.map(r=>`<option value="${esc(r.name)}">`).join(""); if(!$("refSheet").hidden&&!$("rp-list").hidden)renderRoster(); },()=>{});
+}
+const suCol=()=>fdb.collection("signups");
+function watchSignups(){
+  if(unsubSu){unsubSu();unsubSu=null;} if(!fdb)return;
+  const [a,b]=monthRange(cur);
+  unsubSu=suCol().where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ su={}; sn.docs.forEach(d=>{ const x=d.data(); (su[x.gameId]=su[x.gameId]||{})[x.slot]=x; }); if(!$("sheet").hidden&&$("form").hidden&&roGame)openSheet(roGame); },()=>{});
+}
+let roGame=null;
+async function ensureSignedIn(){
+  if(fauth.currentUser)return fauth.currentUser;
+  const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account"});
+  try{ const r=await fauth.signInWithPopup(p); return r.user; }catch(e){ if(e&&e.code!=="auth/popup-closed-by-user")toast("Sign-in didn't work: "+(e.message||e.code)); return null; }
+}
+async function takeSlot(g,slot,map){
+  const u=await ensureSignedIn(); if(!u)return false;
+  const name=prompt("Sign up for "+POSL[slot]+" — "+fmtDate(g.date)+" "+g.team+" vs "+g.opp+".\n\nName to show on the schedule:",u.displayName||"");
+  if(name===null)return false; const nm=name.trim().slice(0,60); if(!nm){ toast("Type a name to sign up."); return false; }
+  const d={gameId:g.id,date:g.date,slot,name:nm,uid:u.uid};
+  try{ await suCol().doc(g.id+"_"+slot).set(d); (map[g.id]=map[g.id]||{})[slot]=d; toast("You're signed up for "+POSL[slot]); return true; }
+  catch(e){ toast(denied(e)?"Someone already has that spot.":"Couldn't sign up. Check your connection."); return false; }
+}
+async function dropSlot(g,slot,map){
+  const x=map[g.id]&&map[g.id][slot]; if(!x)return false;
+  if(!confirm("Remove "+x.name+" from "+POSL[slot]+" on "+fmtDate(g.date)+"?"))return false;
+  try{ await suCol().doc(g.id+"_"+slot).delete(); delete map[g.id][slot]; toast("Removed"); return true; }catch(e){ toast("Couldn't remove. Check your connection."); return false; }
+}
+function slotHtml(g,slot,map){
+  const x=map[g.id]&&map[g.id][slot], L=POSL[slot];
+  if(x){ const mine=me&&(x.uid===me.uid||canEdit); return mine?`<button class="slot mine" data-drop="${slot}" data-gid="${esc(g.id)}" title="Click to remove"><b>${L}:</b> ${esc(x.name)} ✕</button>`:`<span class="slot"><b>${L}:</b> ${esc(x.name)}</span>`; }
+  return SIGNABLE.includes(slot)?`<button class="slot open" data-take="${slot}" data-gid="${esc(g.id)}"><b>${L}:</b> Open, sign up</button>`:"";
 }
 async function addRosterNames(names){
   const have=new Set(roster.map(r=>String(r.name).toLowerCase()));
@@ -563,7 +643,7 @@ function watchMonth(){
   if(!fdb)return;
   if(unsubMonth)unsubMonth();
   const [a,b]=monthRange(cur); loaded=false;
-  if(canEdit)watchRefs();
+  watchRefs(); watchSignups();
   unsubMonth=gamesCol().where("date",">=",a).where("date","<",b).onSnapshot(snap=>{
     games=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
     loaded=true; fillTeams(); status(""); render();
@@ -580,10 +660,12 @@ async function checkSetup(){
   }catch(e){ if(denied(e))status("The database rules need updating. Paste the newest rules from Claude into Firestore and publish them."); }
 }
 function setEditor(user){
+  me=user||null;
   canEdit=!!(user&&user.email&&user.email.toLowerCase()===EDITOR_EMAIL);
-  $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email+" (view only)"):"View only";
-  $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in to edit";
-  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canEdit; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
+  canSeeRefs=!!(user&&user.email&&REF_VIEWERS.includes(user.email.toLowerCase()));
+  $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email):"Not signed in";
+  $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in";
+  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
   checkSetup(); fixNames(); render();
 }
 if(!window.firebase){
@@ -598,7 +680,7 @@ if(!window.firebase){
   watchMonth();
   $("authBtn").onclick=async()=>{
     if(fauth.currentUser){ await fauth.signOut(); toast("Signed out"); return; }
-    const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({login_hint:EDITOR_EMAIL,prompt:"select_account"});
+    const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account"});
     try{ await fauth.signInWithPopup(p); }catch(e){ if(e&&e.code!=="auth/popup-closed-by-user")toast("Sign-in didn't work: "+(e.message||e.code)); }
   };
   $("importBtn").onclick=async()=>{
@@ -616,13 +698,15 @@ $("delBtn").addEventListener("click",async()=>{
   if(!editingId)return;
   if(!delArmed){ delArmed=true; $("delBtn").textContent="Click again to delete"; setTimeout(()=>{delArmed=false;$("delBtn").textContent="Delete";},2500); return; }
   delArmed=false; $("delBtn").textContent="Delete";
-  try{ const old=games.find(x=>x.id===editingId); const oa=asg[editingId]?JSON.parse(JSON.stringify(asg[editingId])):null; await gamesCol().doc(editingId).delete(); if(oa)await asgCol().doc(editingId).delete(); if(old)await record("delete "+old.team+" "+vs(old)+" "+fmtDate(old.date),[{id:editingId,d:clean(old)}].concat(oa?[{col:"refAssign",id:editingId,d:oa}]:[])); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
+  try{ const old=games.find(x=>x.id===editingId); const oa=asg[editingId]?JSON.parse(JSON.stringify(asg[editingId])):null; await gamesCol().doc(editingId).delete(); if(oa)await asgCol().doc(editingId).delete(); const os=su[editingId]||{}; const sb=Object.keys(os).map(k=>({col:"signups",id:editingId+"_"+k,d:JSON.parse(JSON.stringify(os[k]))})); if(sb.length){ const bt=fdb.batch(); sb.forEach(x=>bt.delete(suCol().doc(x.id))); await bt.commit(); } if(old)await record("delete "+old.team+" "+vs(old)+" "+fmtDate(old.date),[{id:editingId,d:clean(old)}].concat(oa?[{col:"refAssign",id:editingId,d:oa}]:[],sb)); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
 });
 $("form").addEventListener("submit",async e=>{
   e.preventDefault();
   const g={date:$("g-date").value,time:$("g-time").value.trim(),team:$("g-team").value.trim(),ha:$("g-ha").value,
     facility:$("g-fac").value,opp:$("g-opp").value.trim(),depart:$("g-ha").value==="A"?$("g-depart").value.trim():"",tent:$("g-tent").checked,cancelled:$("g-cancel").checked};
   if(!g.date||!g.team||!g.opp){ $("ferr").textContent="Date, team, and opponent are required."; return; }
+  { const oldG=editingId?games.find(x=>x.id===editingId):null; const pos=SIGNABLE.filter(k=>$("wn-"+k)&&$("wn-"+k).checked); const def=defaultPos(g);
+    if(g.ha==="H"&&(pos.length!==def.length||pos.some(k=>!def.includes(k))))g.pos=pos; else if(g.ha!=="H"&&oldG&&Array.isArray(oldG.pos))g.pos=oldG.pos; }
   $("saveBtn").disabled=true;
   try{
     const ref=editingId?gamesCol().doc(editingId):gamesCol().doc();
@@ -637,10 +721,43 @@ $("form").addEventListener("submit",async e=>{
       if(hasAny||prevA){ asgBefore={col:"refAssign",id:ref.id,d:prevA}; if(hasAny)await asgCol().doc(ref.id).set({date:g.date,slots}); else await asgCol().doc(ref.id).delete(); }
       if(hasAny)await addRosterNames(slots.map(x=>x.name));
     }
-    await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}].concat(asgBefore?[asgBefore]:[])); toast(editingId?"Game saved":"Game added"); closeSheet();
+    const suBefore=[];
+    if(canEdit&&g.ha==="H"){
+      const curS=(editingId&&su[editingId])||{}; const bt=fdb.batch(); let n=0;
+      POS.forEach(([k])=>{ const el=$("wk-"+k); if(!el)return; const nm=el.value.trim(), ox=curS[k], id=ref.id+"_"+k;
+        if(nm===((ox&&ox.name)||"")&&(!ox||ox.date===g.date))return;
+        suBefore.push({col:"signups",id,d:ox?JSON.parse(JSON.stringify(ox)):null});
+        if(nm)bt.set(suCol().doc(id),{gameId:ref.id,date:g.date,slot:k,name:nm,uid:ox&&ox.name===nm?ox.uid:""}); else bt.delete(suCol().doc(id)); n++; });
+      if(n)await bt.commit();
+    }
+    await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}].concat(asgBefore?[asgBefore]:[],suBefore)); toast(editingId?"Game saved":"Game added"); closeSheet();
   }catch(err){ $("ferr").textContent=denied(err)?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
   $("saveBtn").disabled=false;
 });
+
+// ---- sign up to work ----
+let wkGames=[], wkSu={};
+$("wkBtn").onclick=()=>{ showSheet("wkSheet"); loadWork(); };
+$("wk-close").addEventListener("click",closeSheet);
+async function loadWork(){
+  $("wkList").innerHTML='<p class="small muted">Loading…</p>'; $("wkMine").innerHTML="";
+  try{
+    const end=new Date(todayIso+"T12:00:00"); end.setDate(end.getDate()+60); const to=iso(end);
+    const [gs,ss]=await Promise.all([gamesCol().where("date",">=",todayIso).where("date","<=",to).get(), suCol().where("date",">=",todayIso).where("date","<=",to).get()]);
+    wkGames=gs.docs.map(d=>Object.assign({id:d.id},d.data())).filter(g=>hasWork(g)&&posFor(g).length).sort(sortGames);
+    wkSu={}; ss.docs.forEach(d=>{ const x=d.data(); (wkSu[x.gameId]=wkSu[x.gameId]||{})[x.slot]=x; });
+    drawWork2();
+  }catch(_){ $("wkList").innerHTML='<p class="err">Couldn\'t load games. Check your connection.</p>'; }
+}
+function drawWork2(){
+  const mine=me?wkGames.flatMap(g=>Object.values(wkSu[g.id]||{}).filter(x=>x.uid===me.uid).map(x=>({g,x}))):[];
+  $("wkMine").innerHTML=mine.length?`<div class="wg"><div class="t">Your sign-ups</div><ul style="margin:4px 0 0 20px;padding:0;font-size:13.5px">${mine.map(({g,x})=>`<li>${esc(fmtDate(g.date))} · ${esc(g.time||"TBA")} · ${esc(g.team)} vs ${esc(g.opp)}: <b>${POSL[x.slot]}</b></li>`).join("")}</ul></div>`:"";
+  $("wkNote").textContent=me?"Home games in the next 60 days. Click an open spot to take it, or click your name to drop it.":"Home games in the next 60 days. Click an open spot to sign up. You'll be asked to sign in with Google first.";
+  $("wkList").innerHTML=wkGames.length?wkGames.map(g=>{ const l=posFor(g).concat(wkSu[g.id]&&wkSu[g.id].nurse?["nurse"]:[]); const open=posFor(g).filter(k=>!(wkSu[g.id]&&wkSu[g.id][k])).length;
+    return `<div class="wg"><div class="t">${esc(fmtDate(g.date))} · ${esc(g.time||"TBA")} · ${esc(g.team)} vs ${esc(g.opp)} <small>${open?open+" open":"All filled"}</small></div><div class="slots">${l.map(k=>slotHtml(g,k,wkSu)).join("")}</div></div>`; }).join(""):'<p class="small muted">No home games in the next 60 days.</p>';
+}
+$("wkList").addEventListener("click",async e=>{ const t=e.target.closest("[data-take],[data-drop]"); if(!t)return; const g=wkGames.find(x=>x.id===t.dataset.gid); if(!g)return;
+  const ok=t.dataset.take?await takeSlot(g,t.dataset.take,wkSu):await dropSlot(g,t.dataset.drop,wkSu); if(ok)drawWork2(); });
 
 // ---- officials ----
 function refTab(which){ $("rt-need").setAttribute("aria-pressed",which==="need"); $("rt-list").setAttribute("aria-pressed",which==="list"); $("rp-need").hidden=which!=="need"; $("rp-list").hidden=which!=="list"; if(which==="list")renderRoster(); else loadNeeds(); }
@@ -792,7 +909,7 @@ $("x-go").onclick=async()=>{
     if(type==="travel")list=list.filter(g=>g.ha==="A");
     if(type==="ics"){ list.sort(sortGames); downloadIcs(list,team); closeSheet(); $("x-go").disabled=false; return; }
     list.sort(sortGames);
-    const withOff=canEdit&&type==="full"&&$("x-off").checked; let XA={};
+    const withOff=canSeeRefs&&type==="full"&&$("x-off").checked; let XA={};
     if(withOff){ const as=await asgCol().where("date",">=",from).where("date","<=",to).get(); as.docs.forEach(d=>XA[d.id]=d.data()); }
     const offTxt=g=>{ const sl=(XA[g.id]&&XA[g.id].slots)||[]; return sl.filter(x=>x.name).map(x=>esc(x.name)+(x.confirmed?"":" (unconfirmed)")).join(", "); };
     const title=type==="travel"?"Travel Schedule":"Athletics Schedule";
@@ -867,7 +984,7 @@ $("i-file").onchange=async()=>{
   const rows=parseCSV(await f.text()); if(rows.length<2){ $("ierr").textContent="That file has no rows."; return; }
   const H=rows[0].map(h=>h.trim().toLowerCase().replace(/[^a-z0-9]/g,""));
   const ix=n=>H.indexOf(n);
-  const c={date:ix("date"),team:ix("team"),opp:ix("opponent"),time:ix("time"),ha:ix("homeaway"),fac:ix("facility"),depart:ix("busdeparts"),tent:ix("maychange"),cx:ix("cancelled"),of:[ix("official1"),ix("official2"),ix("official3")],oc:ix("officialsconfirmed")};
+  const c={date:ix("date"),team:ix("team"),opp:ix("opponent"),time:ix("time"),ha:ix("homeaway"),fac:ix("facility"),depart:ix("busdeparts"),tent:ix("maychange"),cx:ix("cancelled"),of:[ix("official1"),ix("official2"),ix("official3")],oc:ix("officialsconfirmed"),wk:{admin:ix("admin"),book:ix("scorebook"),clock:ix("mainclock"),clock2:ix("clock2"),gate:ix("gate"),conc:ix("concessions"),nurse:ix("nurse")}};
   if(c.date<0||c.team<0||c.opp<0){ $("ierr").textContent="The file needs date, team, and opponent columns."; return; }
   const items=[], bad=[];
   rows.slice(1).forEach((r,i)=>{ const d=normDate(r[c.date]||""); if(!d||!(r[c.team]||"").trim()||!(r[c.opp]||"").trim()){bad.push("Row "+(i+2)+": missing or unreadable date, team, or opponent");return;}
@@ -880,14 +997,15 @@ $("i-file").onchange=async()=>{
     if(c.cx>=0&&r[c.cx]&&r[c.cx].trim())fields.cancelled=/^(y|yes|true|1)$/i.test(r[c.cx].trim());
     let offs=null; if(c.of.some(x=>x>=0)){ offs=c.of.map(x=>x>=0?String(r[x]||"").trim():"").slice(0,slotsFor({team:r[c.team]})); if(!offs.some(Boolean))offs=null; }
     const offConf=c.oc>=0&&r[c.oc]?/^(y|yes|true|1)$/i.test(r[c.oc].trim()):false;
-    items.push({date:d,team:r[c.team].trim(),opp:r[c.opp].trim(),fields,offs,offConf}); });
+    let wk=null; Object.entries(c.wk).forEach(([k,x])=>{ if(x<0)return; const v=String(r[x]||"").trim(); if(!v)return; (wk=wk||{})[k]=v; });
+    items.push({date:d,team:r[c.team].trim(),opp:r[c.opp].trim(),fields,offs,offConf,wk}); });
   if(!items.length){ $("ierr").textContent="No usable rows in that file."; return; }
   const dates=items.map(x=>x.date).sort();
   try{
     const snap=await gamesCol().where("date",">=",dates[0]).where("date","<=",dates[dates.length-1]).get();
-    const byKey={}, prev={}; snap.docs.forEach(d=>{ const g=d.data(); prev[d.id]=JSON.parse(JSON.stringify(g)); byKey[key(g.date,g.team,g.opp)]=d.id; });
+    const byKey={}, prev={}, byDT={}; snap.docs.forEach(d=>{ const g=d.data(); prev[d.id]=JSON.parse(JSON.stringify(g)); byKey[key(g.date,g.team,g.opp)]=d.id; const dk=g.date+"|"+String(g.team).trim().toLowerCase(); (byDT[dk]=byDT[dk]||[]).push(d.id); });
     const upd=[], add=[];
-    items.forEach(x=>{ const id=byKey[key(x.date,x.team,x.opp)]; if(id)upd.push({id,x}); else add.push(x); });
+    items.forEach(x=>{ let id=byKey[key(x.date,x.team,x.opp)]; if(!id){ const l=byDT[x.date+"|"+x.team.toLowerCase()]; if(l&&(x.offs||x.wk)){ const h=l.length>1?l.filter(z=>prev[z].ha==="H"&&!SKIP.test(prev[z].opp)):l; if(h.length===1)id=h[0]; } } if(id)upd.push({id,x}); else add.push(x); });
     plan={upd,add,prev};
     const li=a=>a.slice(0,40).map(s=>`<li>${esc(s)}</li>`).join("")+(a.length>40?`<li>…and ${a.length-40} more</li>`:"");
     $("i-preview").innerHTML=`<div class="ipv"><div><span class="ok">${upd.length}</span> games will be updated.</div>`+
@@ -909,12 +1027,23 @@ $("i-go").onclick=async()=>{
     plan.upd.forEach(u=>{ before.push({id:u.id,d:plan.prev[u.id]||null}); if(Object.keys(u.x.fields).length)ops.push(b=>b.update(gamesCol().doc(u.id),u.x.fields)); });
     const offRows=[];
     plan.upd.forEach(u=>{ if(u.x.offs)offRows.push({id:u.id,x:u.x}); });
-    adds.forEach(x=>{ const r=gamesCol().doc(); before.push({id:r.id,d:null}); if(x.offs)offRows.push({id:r.id,x}); ops.push(b=>b.set(r,Object.assign({date:x.date,team:x.team,opp:x.opp,time:"",facility:"",depart:"",tent:false},x.fields))); });
+    adds.forEach(x=>{ const r=gamesCol().doc(); x._newId=r.id; before.push({id:r.id,d:null}); if(x.offs)offRows.push({id:r.id,x}); ops.push(b=>b.set(r,Object.assign({date:x.date,team:x.team,opp:x.opp,time:"",facility:"",depart:"",tent:false},x.fields))); });
     if(offRows.length){
       const ds=offRows.map(o=>o.x.date).sort();
       const prevSnap=await asgCol().where("date",">=",ds[0]).where("date","<=",ds[ds.length-1]).get();
       const prevA={}; prevSnap.docs.forEach(d=>prevA[d.id]=JSON.parse(JSON.stringify(d.data())));
       offRows.forEach(o=>{ const slots=o.x.offs.map(n=>({name:n,confirmed:!!(n&&o.x.offConf)})); before.push({col:"refAssign",id:o.id,d:prevA[o.id]||null}); ops.push(b=>b.set(asgCol().doc(o.id),{date:o.x.date,slots})); });
+    }
+    const wkRows=[]; plan.upd.forEach(u=>{ if(u.x.wk)wkRows.push({id:u.id,x:u.x,g:plan.prev[u.id]}); });
+    adds.forEach(x=>{ if(x.wk)wkRows.push({id:x._newId,x,g:null}); });
+    if(wkRows.length){
+      const ds=wkRows.map(o=>o.x.date).sort();
+      const ps=await suCol().where("date",">=",ds[0]).where("date","<=",ds[ds.length-1]).get(); const PS={}; ps.docs.forEach(d=>PS[d.id]=JSON.parse(JSON.stringify(d.data())));
+      wkRows.filter(o=>o.id).forEach(o=>{ const g=Object.assign({},o.g||{},o.x.fields,{team:o.x.team,opp:o.x.opp}); let pos=posFor(g).slice(); let posChanged=false;
+        Object.entries(o.x.wk).forEach(([k,v])=>{ if(/^n\/?a$/i.test(v)){ if(k!=="nurse"&&pos.includes(k)){ pos=pos.filter(z=>z!==k); posChanged=true; } return; }
+          if(k!=="nurse"&&!pos.includes(k)){ pos.push(k); posChanged=true; }
+          const id=o.id+"_"+k; before.push({col:"signups",id,d:PS[id]||null}); ops.push(b=>b.set(suCol().doc(id),{gameId:o.id,date:o.x.date,slot:k,name:v,uid:""})); });
+        if(posChanged){ pos=SIGNABLE.filter(k=>pos.includes(k)); ops.push(b=>b.update(gamesCol().doc(o.id),{pos})); } });
     }
     for(let i=0;i<ops.length;i+=400){ const b=fdb.batch(); ops.slice(i,i+400).forEach(f=>f(b)); await b.commit(); }
     await addTeams(adds.map(x=>x.team));
@@ -931,10 +1060,11 @@ $("backupBtn").onclick=async()=>{
   try{
     const snap=await gamesCol().get();
     const list=snap.docs.map(d=>Object.assign({_id:d.id},d.data())).sort(sortGames);
-    const lines=[["date","team","opponent","time","home_away","facility","bus_departs","may_change","cancelled","official_1","official_2","official_3","officials_confirmed"].join(",")];
+    const lines=[["date","team","opponent","time","home_away","facility","bus_departs","may_change","cancelled","official_1","official_2","official_3","officials_confirmed","admin","scorebook","main_clock","clock_2","gate","concessions","nurse"].join(",")];
     const aSnap=await asgCol().get(); const A={}; aSnap.docs.forEach(d=>A[d.id]=d.data());
+    const sSnap=await suCol().get(); const S={}; sSnap.docs.forEach(d=>{ const x=d.data(); (S[x.gameId]=S[x.gameId]||{})[x.slot]=x.name; });
     list.forEach(g=>{ const sl=(A[g._id]&&A[g._id].slots)||[]; const allConf=sl.length&&sl.filter(x=>x.name).every(x=>x.confirmed);
-      lines.push([g.date,g.team,g.opp,g.time,g.ha==="A"?"Away":"Home",g.facility,g.depart,g.tent?"yes":"no",g.cancelled?"yes":"no",(sl[0]||{}).name||"",(sl[1]||{}).name||"",(sl[2]||{}).name||"",sl.some(x=>x.name)?(allConf?"yes":"no"):""].map(csvCell).join(",")); });
+      lines.push([g.date,g.team,g.opp,g.time,g.ha==="A"?"Away":"Home",g.facility,g.depart,g.tent?"yes":"no",g.cancelled?"yes":"no",(sl[0]||{}).name||"",(sl[1]||{}).name||"",(sl[2]||{}).name||"",sl.some(x=>x.name)?(allConf?"yes":"no"):""].concat(g.ha==="H"?POS.map(([k])=>(S[g._id]&&S[g._id][k])||(k!=="nurse"&&!posFor(g).includes(k)?"N/A":"")):POS.map(()=>"")).map(csvCell).join(",")); });
     const blob=new Blob([lines.join("\n")+"\n"],{type:"text/csv"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="sandoval-schedule-backup-"+todayIso+".csv";
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
@@ -1068,7 +1198,7 @@ $("d-go").onclick=async()=>{
   const gone=[].concat(...dplan.map(g=>g.games.filter(x=>!x.keep))); if(!gone.length||!canEdit)return;
   $("d-go").disabled=true;
   try{
-    for(let i=0;i<gone.length;i+=400){ const b=fdb.batch(); gone.slice(i,i+400).forEach(g=>{ b.delete(gamesCol().doc(g.id)); b.delete(asgCol().doc(g.id)); }); await b.commit(); }
+    for(let i=0;i<gone.length;i+=60){ const b=fdb.batch(); gone.slice(i,i+60).forEach(g=>{ b.delete(gamesCol().doc(g.id)); b.delete(asgCol().doc(g.id)); POS.forEach(([k])=>b.delete(suCol().doc(g.id+"_"+k))); }); await b.commit(); }
     await record("remove "+gone.length+" duplicate"+(gone.length===1?"":"s"),gone.map(g=>({id:g.id,d:clean(Object.assign({},g,{keep:undefined}))})));
     toast("Removed "+gone.length+" games"); closeSheet();
   }catch(e){ $("derr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't remove them. Try again."; $("d-go").disabled=false; }
