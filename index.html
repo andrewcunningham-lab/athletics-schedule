@@ -16,16 +16,16 @@ html,body{margin:0}
 :root{
   --bg:#f6f4f4; --surface:#ffffff; --ink:#171516; --muted:#6c6466; --line:#ddd6d7;
   --scarlet:#c8102e; --scarlet-ink:#ffffff; --black:#121112;
-  --gym:#0067a5; --field:#c46a00; --park:#a2457e; --away:#4b4547; --tent:#9a7b12;
+  --gym:#0067a5; --field:#c46a00; --park:#a2457e; --gsg:#007a5a; --away:#4b4547; --tent:#9a7b12;
   --display:"Oswald","Arial Narrow",Impact,sans-serif;
   --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#121011; --surface:#1c191a; --ink:#f1eded; --muted:#a59c9e; --line:#3a3335;
-  --scarlet:#e3263f; --black:#000; --gym:#56b4e9; --field:#e69f00; --park:#cc79a7; --away:#b3aaac; --tent:#e0be52; color-scheme:dark}}
+  --scarlet:#e3263f; --black:#000; --gym:#56b4e9; --field:#e69f00; --park:#cc79a7; --gsg:#2fbf95; --away:#b3aaac; --tent:#e0be52; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121011; --surface:#1c191a; --ink:#f1eded; --muted:#a59c9e; --line:#3a3335;
-  --scarlet:#e3263f; --black:#000; --gym:#56b4e9; --field:#e69f00; --park:#cc79a7; --away:#b3aaac; --tent:#e0be52; color-scheme:dark}
+  --scarlet:#e3263f; --black:#000; --gym:#56b4e9; --field:#e69f00; --park:#cc79a7; --gsg:#2fbf95; --away:#b3aaac; --tent:#e0be52; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4;
@@ -71,10 +71,10 @@ select,input[type=text],input[type=date],input[type=time]{background:var(--surfa
 .fac{display:flex;flex-direction:column;gap:2px}
 .flag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:4px;padding:1px 6px;color:#fff;align-self:flex-start}
 .flag{color:#000}
-.flag.gym{background:var(--gym);color:#fff} .flag.field{background:var(--field)} .flag.park{background:var(--park);color:#fff}
+.flag.gym{background:var(--gym);color:#fff} .flag.field{background:var(--field)} .flag.park{background:var(--park);color:#fff} .flag.gsg{background:var(--gsg);color:#fff}
 :root[data-theme="dark"] .flag.gym{color:#000}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .flag.gym,:root:not([data-theme="light"]) .flag.park{color:#000}}
-:root[data-theme="dark"] .flag.park{color:#000}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .flag.gym,:root:not([data-theme="light"]) .flag.park,:root:not([data-theme="light"]) .flag.gsg{color:#000}}
+:root[data-theme="dark"] .flag.park,:root[data-theme="dark"] .flag.gsg{color:#000}
 .ev{display:block;width:100%;text-align:left;border:1px solid var(--line);border-left:4px solid var(--c);background:var(--surface);border-radius:5px;padding:3px 6px;font-size:12.5px;line-height:1.25;cursor:pointer;color:var(--ink)}
 .ev:hover{border-color:var(--c)}
 .ev b{font-weight:700}
@@ -94,7 +94,7 @@ tbody tr:hover td{background:var(--bg)}
 td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 .pill{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:1px 9px;border:1px solid currentColor}
 .pill.H{color:var(--scarlet)} .pill.A{color:var(--away)}
-.pill.gym{color:var(--gym)} .pill.field{color:var(--field)} .pill.park{color:var(--park)}
+.pill.gym{color:var(--gym)} .pill.field{color:var(--field)} .pill.park{color:var(--park)} .pill.gsg{color:var(--gsg)}
 .tentnote{color:var(--tent);font-size:12px;font-weight:600}
 .mrow td{background:var(--bg);font-family:var(--display);font-weight:600;font-size:16px;letter-spacing:.03em;cursor:default}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
@@ -255,6 +255,7 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
     <select id="fFac">
       <option value="all">All games</option>
       <option value="HS gym">HS gym bookings</option>
+      <option value="GS gym">GS gym bookings</option>
       <option value="School field">School field bookings</option>
       <option value="Park field">Park field bookings</option>
     </select>
@@ -277,6 +278,7 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
     <button class="btn admintool" id="coachBtn" hidden>Coaches</button>
     <button class="btn primary" id="addBtn" hidden>+ Add game</button>
     <button class="btn primary" id="addPBtn" hidden>+ Add practice</button>
+    <button class="btn primary" id="addEBtn" hidden>+ Add event</button>
   </div>
 
     <div class="mhead">
@@ -284,7 +286,7 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
       <h2 id="mtitle"></h2>
       <button class="btn" id="next" aria-label="Next month">›</button>
       <button class="btn" id="todayBtn">Today</button>
-      <div class="key" id="calKey"><span><i style="background:var(--gym)"></i>HS gym booked</span><span><i style="background:var(--field)"></i>School field booked</span><span><i style="background:var(--park)"></i>Park field booked</span><span><i style="border:1px dashed var(--muted)"></i>Date may change</span></div>
+      <div class="key" id="calKey"><span><i style="background:var(--gym)"></i>HS gym booked</span><span><i style="background:var(--gsg)"></i>GS gym booked</span><span><i style="background:var(--field)"></i>School field booked</span><span><i style="background:var(--park)"></i>Park field booked</span><span><i style="border:1px dashed var(--muted)"></i>Date may change</span></div>
     </div>
   <div id="calView">
     <div class="gridwrap"><div class="grid" id="grid"></div></div>
@@ -312,7 +314,7 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
     <datalist id="teamList"></datalist>
     <div class="two">
       <label><span class="lbl">Home or away</span><select id="g-ha"><option value="H">Home</option><option value="A">Away</option></select></label>
-      <label><span class="lbl">Facility</span><select id="g-fac"><option value="">None</option><option>HS gym</option><option>School field</option><option>Park field</option></select></label>
+      <label><span class="lbl">Facility</span><select id="g-fac"><option value="">None</option><option>HS gym</option><option>GS gym</option><option>School field</option><option>Park field</option></select></label>
     </div>
     <label><span class="lbl">Opponent or event</span><input type="text" id="g-opp" required></label>
     <fieldset id="offWrap" class="offs" hidden>
@@ -398,13 +400,46 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
     <div class="row"><button class="btn primary" id="d-go" disabled>Remove unchecked games</button><button class="btn" id="d-cancel">Close</button></div>
   </div>
 </aside>
+<aside class="sheet" id="obSheet" hidden role="dialog" aria-labelledby="obTitle">
+  <h3 id="obTitle">Open in your browser to sign in</h3>
+  <p>Google doesn't allow signing in from inside this app. Open this page in <b>Safari</b> or <b>Chrome</b> instead:</p>
+  <ol style="padding-left:20px;line-height:1.5"><li>Tap the <b>⋯</b> or <b>share</b> icon in this app.</li><li>Choose <b>Open in Safari</b> (or Open in Browser).</li><li>Tap <b>Sign in</b> there.</li></ol>
+  <p class="small muted">Or copy the link and paste it into Safari or Chrome.</p>
+  <div class="row"><button class="btn primary" id="obCopy">Copy link</button><button class="btn" id="obClose">Close</button></div>
+</aside>
+<aside class="sheet" id="eSheet" hidden role="dialog" aria-labelledby="eTitle">
+  <h3 id="eTitle">Event</h3>
+  <form class="form" id="eForm" autocomplete="off" hidden>
+    <label><span class="lbl">Event name</span><input type="text" id="ev-title" required></label>
+    <div class="two">
+      <label><span class="lbl">Date</span><input type="date" id="ev-date" required></label>
+      <label><span class="lbl">Location</span><select id="ev-fac"><option>HS gym</option><option>GS gym</option><option>School field</option><option>Park field</option><option value="Other">Other</option><option value="">Location not set</option></select></label>
+    </div>
+    <label id="ev-otherWrap" hidden><span class="lbl">Other location</span><input type="text" id="ev-other"></label>
+    <label class="chk"><input type="checkbox" id="ev-all"> All day</label>
+    <div class="two" id="ev-times">
+      <label><span class="lbl">Start</span><input type="time" id="ev-start"></label>
+      <label><span class="lbl">End</span><input type="time" id="ev-end"></label>
+    </div>
+    <label><span class="lbl">Notes (optional)</span><input type="text" id="ev-notes"></label>
+    <p class="small muted">Events block their location: coaches can't book a practice there at the same time.</p>
+    <p class="err" id="everr"></p>
+    <div class="row">
+      <button class="btn primary" type="submit" id="eSave">Save</button>
+      <button class="btn" type="button" id="eClose">Cancel</button>
+      <span class="spacer"></span>
+      <button class="btn danger" type="button" id="eDel" hidden>Delete</button>
+    </div>
+  </form>
+  <div id="eRo" hidden></div>
+</aside>
 <aside class="sheet" id="pSheet" hidden role="dialog" aria-labelledby="pTitle">
   <h3 id="pTitle">Practice</h3>
   <form class="form" id="pForm" autocomplete="off" hidden>
     <label><span class="lbl">Team</span><select id="p-team"></select></label>
     <div class="two">
       <label><span class="lbl">Date</span><input type="date" id="p-date" required></label>
-      <label><span class="lbl">Location</span><select id="p-fac"><option>HS gym</option><option>School field</option><option>Park field</option><option value="Other">Other</option></select></label>
+      <label><span class="lbl">Location</span><select id="p-fac"><option>HS gym</option><option>GS gym</option><option>School field</option><option>Park field</option><option value="Other">Other</option><option value="">Location not set</option></select></label>
     </div>
     <label id="p-otherWrap" hidden><span class="lbl">Other location</span><input type="text" id="p-other"></label>
     <div class="two">
@@ -437,8 +472,9 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
     <p class="small muted">Head coaches sign in with their school Google account. They can add, edit, cancel, and delete practices for their own teams only.</p>
     <div class="form">
       <div class="two"><label><span class="lbl">Name</span><input type="text" id="c-name"></label><label><span class="lbl">School email</span><input type="text" id="c-email"></label></div>
-      <div><span class="lbl">Teams</span><div id="c-teams" class="row" style="flex-wrap:wrap;gap:8px 14px;margin-top:4px"></div></div>
-      <div class="row"><button class="btn primary" id="c-add">Save coach</button></div>
+      <label><span class="lbl">Role</span><select id="c-role"><option value="coach">Head coach (practices for their teams)</option><option value="events">Events only (e.g. GS Secretary)</option></select></label>
+      <div id="c-teamsWrap"><span class="lbl">Teams</span><div id="c-teams" class="row" style="flex-wrap:wrap;gap:8px 14px;margin-top:4px"></div></div>
+      <div class="row"><button class="btn primary" id="c-add">Save</button></div>
       <p class="err" id="cerr2"></p>
     </div>
     <div id="coachList"></div>
@@ -535,6 +571,7 @@ function defaultPos(g){ const t=g.team||""; if(/music/i.test(t))return []; if(/b
 const posFor=g=>Array.isArray(g.pos)?g.pos:defaultPos(g);
 const hasWork=g=>g.ha==="H"&&!g.cancelled&&g.team!=="Music";
 const LOGO=document.querySelector(".brand img").src;
+let events=[], unsubEv=null, canEvents=false, editingE=null;
 let practices=[], mode="games", coachTeams=[], gameHours=2, unsubPrac=null, editingP=null, pWasCancelled=false;
 let games=[], teamList=[], canEdit=false, view="cal", editingId=null, loaded=false, metaExists=null;
 let cur=new Date(); cur.setDate(1);
@@ -543,7 +580,7 @@ function savePref(){ try{ localStorage.setItem("sandovalSched",JSON.stringify({v
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function mins(t){ const m=String(t||"").match(/(\d{1,2}):(\d{2})\s*([AP])M/i); if(!m)return 9999; let h=+m[1]%12; if(m[3].toUpperCase()==="P")h+=12; return h*60+ +m[2]; }
 function sortGames(a,b){ return a.date<b.date?-1:a.date>b.date?1:(mins(a.time)-mins(b.time))||String(a.team).localeCompare(b.team); }
-const FAC={"HS gym":{c:"gym",l:"HS gym"},"School field":{c:"field",l:"School field"},"Park field":{c:"park",l:"Park field"}};
+const FAC={"HS gym":{c:"gym",l:"HS gym"},"GS gym":{c:"gsg",l:"GS gym"},"School field":{c:"field",l:"School field"},"Park field":{c:"park",l:"Park field"}};
 function colorFor(g){ const f=FAC[g.facility]; return f?"var(--"+f.c+")":g.ha==="A"?"var(--away)":"var(--muted)"; }
 function fmtDate(s){ const d=new Date(s+"T12:00:00"); return DN[d.getDay()]+" "+(d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(2); }
 function vs(g){ return (g.ha==="A"?"@ ":"vs ")+g.opp; }
@@ -564,12 +601,12 @@ const canPractice=()=>canEdit||coachTeams.length>0;
 const myTeam=t=>canEdit||coachTeams.includes(t);
 function fmt12(t){ const m=String(t||"").match(/^(\d{1,2}):(\d{2})/); if(!m)return ""; let h=+m[1], ap=h>=12?"PM":"AM"; h=h%12||12; return h+":"+m[2]+" "+ap; }
 const tmin=t=>{ const m=String(t||"").match(/^(\d{1,2}):(\d{2})/); return m?(+m[1])*60+ +m[2]:0; };
-const pLoc=x=>x.facility==="Other"?(x.other||"Other"):x.facility;
+const pLoc=x=>x.facility==="Other"?(x.other||"Other"):(x.facility||"Location not set");
 const sortP=(a,b)=>a.date<b.date?-1:a.date>b.date?1:tmin(a.start)-tmin(b.start)||String(a.team).localeCompare(b.team);
 function render(){
   const P=mode==="practices";
   $("m-games").setAttribute("aria-pressed",!P); $("m-prac").setAttribute("aria-pressed",P);
-  $("pGamesWrap").hidden=!(P&&canPractice()); $("addBtn").hidden=!(canEdit&&!P); $("addPBtn").hidden=!(P&&canPractice());
+  $("pGamesWrap").hidden=!(P&&canPractice()); $("addBtn").hidden=!(canEdit&&!P); $("addPBtn").hidden=!(P&&canPractice()); $("addEBtn").hidden=!(P&&(canEdit||canEvents));
   $("fFac").options[0].textContent=P?"All locations":"All games";
   $("v-cal").setAttribute("aria-pressed",view==="cal"); $("v-list").setAttribute("aria-pressed",view==="list");
   $("calView").hidden=view!=="cal"; $("listView").hidden=view!=="list"; $("calKey").hidden=view!=="cal";
@@ -580,10 +617,14 @@ function render(){
 }
 function labelRows(){ const hs=[...document.querySelectorAll("#lhead th")].map(t=>t.textContent); document.querySelectorAll("#rows tr").forEach(tr=>[...tr.children].forEach((td,i)=>{ if(hs[i])td.dataset.label=hs[i]; })); }
 function pChip(x){ return `<button class="ev pr${x.cancelled?" cancel":""}" data-pid="${esc(x.id)}" style="--c:${FAC[x.facility]?"var(--"+FAC[x.facility].c+")":"var(--muted)"}">${x.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><span class="tag">PRACTICE</span><b>${esc(x.team)}</b></span><span class="t">${esc(fmt12(x.start))}–${esc(fmt12(x.end))} · ${esc(pLoc(x))}</span></button>`; }
+const sortE=(a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.allDay?-1:b.allDay?1:tmin(a.start)-tmin(b.start));
+const eWhen=x=>x.allDay?"All day":fmt12(x.start)+"–"+fmt12(x.end);
+function eChip(x){ return `<button class="ev pr" data-eid="${esc(x.id)}" style="--c:${FAC[x.facility]?"var(--"+FAC[x.facility].c+")":"var(--muted)"}"><span class="who"><span class="tag">EVENT</span><b>${esc(x.title)}</b></span><span class="t">${esc(eWhen(x))} · ${esc(pLoc(x))}</span></button>`; }
 function renderPCal(){
   const y=cur.getFullYear(), m=cur.getMonth(), fac=$("fFac").value, team=$("fTeam").value, showG=canPractice()&&$("pGames").checked;
   const byDay={}; practices.forEach(x=>{(byDay[x.date]=byDay[x.date]||[]).push(x)});
   const gDay={}; if(showG)games.forEach(g=>{(gDay[g.date]=gDay[g.date]||[]).push(g)});
+  const eDay={}; events.forEach(x=>{(eDay[x.date]=eDay[x.date]||[]).push(x)});
   let h=DN.map(d=>`<div class="dow">${d}</div>`).join("");
   const start=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate();
   for(let i=0;i<start;i++)h+=`<div class="day out"></div>`;
@@ -591,7 +632,8 @@ function renderPCal(){
     const key=y+"-"+pad(m+1)+"-"+pad(d);
     const ps=(byDay[key]||[]).filter(x=>(fac==="all"||x.facility===fac)&&(!team||x.team===team)).sort(sortP);
     const gs=(gDay[key]||[]).filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team)).sort(sortGames);
-    h+=`<div data-day="${key}" class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canPractice()?`<button class="add" data-padd="${key}" aria-label="Add practice on ${MN[m]} ${d}">+</button>`:""}</div>`+
+    const es=team?[]:(eDay[key]||[]).filter(x=>fac==="all"||x.facility===fac).sort(sortE);
+    h+=`<div data-day="${key}" class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canPractice()?`<button class="add" data-padd="${key}" aria-label="Add practice on ${MN[m]} ${d}">+</button>`:canEvents?`<button class="add" data-eadd="${key}" aria-label="Add event on ${MN[m]} ${d}">+</button>`:""}</div>`+es.map(eChip).join("")+
       gs.map(g=>`<button class="ev gov${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}"><span class="who"><span class="tag">GAME</span><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.facility?" · "+esc(g.facility):""}</span></button>`).join("")+
       ps.map(pChip).join("")+`</div>`;
   }
@@ -601,9 +643,10 @@ function renderPCal(){
 function renderPList(){
   $("lhead").innerHTML="<tr><th>Date</th><th>Time</th><th>Team</th><th>Location</th><th>Notes</th></tr>";
   const fac=$("fFac").value, team=$("fTeam").value;
-  const list=practices.filter(x=>(fac==="all"||x.facility===fac)&&(!team||x.team===team)).sort(sortP);
+  const evs=team?[]:events.filter(x=>fac==="all"||x.facility===fac).map(x=>Object.assign({_ev:1},x));
+  const list=practices.filter(x=>(fac==="all"||x.facility===fac)&&(!team||x.team===team)).concat(evs).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.allDay?-1:b.allDay?1:tmin(a.start)-tmin(b.start)));
   if(!list.length){ $("rows").innerHTML=`<tr><td colspan="5"><div class="empty"><b>No practices this month</b>Use the arrows to move to another month.</div></td></tr>`; return; }
-  $("rows").innerHTML=list.map(x=>`<tr data-pid="${esc(x.id)}"${x.cancelled?' class="cancel"':""}><td class="d">${fmtDate(x.date)}${x.cancelled?'<div><span class="cx">CANCELLED</span></div>':""}</td><td class="d">${esc(fmt12(x.start))}–${esc(fmt12(x.end))}</td><td class="strike">${esc(x.team)}</td><td>${FAC[x.facility]?`<span class="pill ${FAC[x.facility].c}">${esc(x.facility)}</span>`:esc(pLoc(x))}</td><td>${esc(x.notes||"")}</td></tr>`).join("");
+  $("rows").innerHTML=list.map(x=>x._ev?`<tr data-eid="${esc(x.id)}"><td class="d">${fmtDate(x.date)}</td><td class="d">${esc(eWhen(x))}</td><td><span class="tag" style="font-size:10px;font-weight:700;border:1px solid currentColor;border-radius:3px;padding:0 4px">EVENT</span> ${esc(x.title)}</td><td>${FAC[x.facility]?`<span class="pill ${FAC[x.facility].c}">${esc(x.facility)}</span>`:esc(pLoc(x))}</td><td>${esc(x.notes||"")}</td></tr>`:`<tr data-pid="${esc(x.id)}"${x.cancelled?' class="cancel"':""}><td class="d">${fmtDate(x.date)}${x.cancelled?'<div><span class="cx">CANCELLED</span></div>':""}</td><td class="d">${esc(fmt12(x.start))}–${esc(fmt12(x.end))}</td><td class="strike">${esc(x.team)}</td><td>${FAC[x.facility]?`<span class="pill ${FAC[x.facility].c}">${esc(x.facility)}</span>`:esc(pLoc(x))}</td><td>${esc(x.notes||"")}</td></tr>`).join("");
 }
 function renderCal(){
   const y=cur.getFullYear(), m=cur.getMonth();
@@ -635,7 +678,7 @@ function renderList(){
 }
 
 // ---- sheets ----
-const SHEETS=["pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet"];
+const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; editingP=null; }
 function openSheet(g,date){
@@ -704,6 +747,8 @@ $("addBtn").onclick=()=>openSheet(null);
 function gridClick(e){
   if(isMobile()&&e.currentTarget.id==="grid"){ const dd=e.target.closest(".day[data-day]"); if(dd){ selDay=dd.dataset.day; mobileDays(); return; } }
   const a=e.target.closest("[data-add]"); if(a){openSheet(null,a.dataset.add);return;}
+  const ea=e.target.closest("[data-eadd]"); if(ea){openEvent(null,ea.dataset.eadd);return;}
+  const eb=e.target.closest("[data-eid]"); if(eb){const x=events.find(y=>y.id===eb.dataset.eid); if(x)openEvent(x); return;}
   const pa=e.target.closest("[data-padd]"); if(pa){openPractice(null,pa.dataset.padd);return;}
   const pb=e.target.closest("[data-pid]"); if(pb){const x=practices.find(y=>y.id===pb.dataset.pid); if(x)openPractice(x); return;}
   const b=e.target.closest(".ev"); if(b){const g=games.find(x=>x.id===b.dataset.id); if(g)openSheet(g);}
@@ -722,11 +767,12 @@ function mobileDays(){
     if(n)nb.insertAdjacentHTML("beforeend",`<span class="cnt" aria-label="${n} on this day">${n}</span>`);
     c.classList.toggle("sel",c.dataset.day===selDay); if(c.dataset.day===selDay)pick=c; });
   const evs=[...pick.querySelectorAll(".fac .flag, .ev")].map(x=>x.outerHTML).join("");
-  const add=pick.querySelector("[data-add],[data-padd]");
-  const addBtn=add?(add.dataset.add?`<button class="btn" data-add="${add.dataset.add}">+ Add game this day</button>`:`<button class="btn" data-padd="${add.dataset.padd}">+ Add practice this day</button>`):"";
+  const add=pick.querySelector("[data-add],[data-padd],[data-eadd]");
+  let addBtn=add?(add.dataset.add?`<button class="btn" data-add="${add.dataset.add}">+ Add game this day</button>`:add.dataset.padd?`<button class="btn" data-padd="${add.dataset.padd}">+ Add practice this day</button>`:`<button class="btn" data-eadd="${add.dataset.eadd}">+ Add event this day</button>`):"";
+  if(mode==="practices"&&canEdit)addBtn+=` <button class="btn" data-eadd="${selDay}">+ Add event this day</button>`;
   dl.innerHTML=`<h3>${esc(fmtDate(selDay))}</h3>`+(evs?`<div class="dl-items">${evs}</div>`:`<p class="small muted">${mode==="practices"?"No practices":"No games"} this day.</p>`)+addBtn;
 }
-$("rows").addEventListener("click",e=>{ const pt=e.target.closest("tr[data-pid]"); if(pt){ const x=practices.find(y=>y.id===pt.dataset.pid); if(x)openPractice(x); return; } const tr=e.target.closest("tr[data-id]"); if(!tr)return; const g=games.find(x=>x.id===tr.dataset.id); if(g)openSheet(g); });
+$("rows").addEventListener("click",e=>{ const et=e.target.closest("tr[data-eid]"); if(et){ const x=events.find(y=>y.id===et.dataset.eid); if(x)openEvent(x); return; } const pt=e.target.closest("tr[data-pid]"); if(pt){ const x=practices.find(y=>y.id===pt.dataset.pid); if(x)openPractice(x); return; } const tr=e.target.closest("tr[data-id]"); if(!tr)return; const g=games.find(x=>x.id===tr.dataset.id); if(g)openSheet(g); });
 render();
 
 // ---- data (Firebase) ----
@@ -765,10 +811,25 @@ function watchSignups(){
   unsubSu=suCol().where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ su={}; sn.docs.forEach(d=>{ const x=d.data(); (su[x.gameId]=su[x.gameId]||{})[x.slot]=x; }); if(!$("sheet").hidden&&$("form").hidden&&roGame)openSheet(roGame); },()=>{});
 }
 let roGame=null;
+const inAppBrowser=()=>/FBAN|FBAV|FB_IAB|Instagram|Line\/|Snapchat|Twitter|LinkedInApp|GSA\/|MicroMessenger/i.test(navigator.userAgent)||(/iPhone|iPad|iPod/i.test(navigator.userAgent)&&!/Safari\//.test(navigator.userAgent)&&!(navigator.standalone));
+const standaloneApp=()=>!!(navigator.standalone||(window.matchMedia&&matchMedia("(display-mode: standalone)").matches));
+function showOpenInBrowser(){
+  showSheet("obSheet");
+}
+async function googleSignIn(){
+  if(inAppBrowser()){ showOpenInBrowser(); return null; }
+  const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account"});
+  if(standaloneApp()){ try{ await fauth.signInWithRedirect(p); }catch(e){ toast("Sign-in didn't work: "+(e.message||e.code)); } return null; }
+  try{ const r=await fauth.signInWithPopup(p); return r.user; }
+  catch(e){
+    const c=e&&e.code;
+    if(["auth/popup-blocked","auth/operation-not-supported-in-environment","auth/web-storage-unsupported"].includes(c)){ try{ await fauth.signInWithRedirect(p); }catch(e2){ showOpenInBrowser(); } return null; }
+    if(c!=="auth/popup-closed-by-user"&&c!=="auth/cancelled-popup-request")toast("Sign-in didn't work: "+(e.message||c)); return null;
+  }
+}
 async function ensureSignedIn(){
   if(fauth.currentUser)return fauth.currentUser;
-  const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account"});
-  try{ const r=await fauth.signInWithPopup(p); return r.user; }catch(e){ if(e&&e.code!=="auth/popup-closed-by-user")toast("Sign-in didn't work: "+(e.message||e.code)); return null; }
+  return await googleSignIn();
 }
 async function takeSlot(g,slot,map){
   const u=await ensureSignedIn(); if(!u)return false;
@@ -840,12 +901,12 @@ function setEditor(user){
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in";
   $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
   $("coachBtn").hidden=!canEdit; $("moreBtn").hidden=!canEdit;
-  coachTeams=[]; loadCoach(user);
+  coachTeams=[]; canEvents=false; loadCoach(user);
   checkSetup(); fixNames(); render();
 }
 async function loadCoach(user){
   if(!user||!user.email||canEdit||!fdb)return;
-  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ coachTeams=(d.data().teams||[]).slice(); $("who").textContent="Coach: "+user.email; render(); } }catch(_){}
+  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ const x=d.data(); if(x.role==="events"){ canEvents=true; $("who").textContent="Events: "+user.email; if(mode!=="practices"){ mode="practices"; } } else { coachTeams=(x.teams||[]).slice(); $("who").textContent="Coach: "+user.email; } render(); } }catch(_){}
 }
 if(!window.firebase){
   $("who").textContent="Not connected"; status("This schedule couldn't reach its database. Check the internet connection and reload.");
@@ -859,9 +920,9 @@ if(!window.firebase){
   watchMonth();
   $("authBtn").onclick=async()=>{
     if(fauth.currentUser){ await fauth.signOut(); toast("Signed out"); return; }
-    const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account"});
-    try{ await fauth.signInWithPopup(p); }catch(e){ if(e&&e.code!=="auth/popup-closed-by-user")toast("Sign-in didn't work: "+(e.message||e.code)); }
+    await googleSignIn();
   };
+  fauth.getRedirectResult().catch(e=>{ if(e&&e.code)toast("Sign-in didn't work: "+(e.message||e.code)); });
   $("importBtn").onclick=async()=>{
     if(!canEdit)return; $("importBtn").disabled=true;
     try{ const b=fdb.batch(); STARTER.forEach(g=>{ const {id,...rest}=g; b.set(gamesCol().doc(id),rest); }); await b.commit();
@@ -919,6 +980,8 @@ function pracCol(){ return fdb.collection("practices"); }
 function watchPractices(){
   if(unsubPrac){unsubPrac();unsubPrac=null;} if(!fdb)return;
   const [a,b]=monthRange(cur);
+  if(unsubEv){unsubEv();unsubEv=null;}
+  unsubEv=fdb.collection("events").where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ events=sn.docs.map(d=>Object.assign({id:d.id},d.data())); if(mode==="practices")render(); },()=>{});
   unsubPrac=pracCol().where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ practices=sn.docs.map(d=>Object.assign({id:d.id},d.data())); if(mode==="practices")render(); },()=>{});
 }
 async function loadPracCfg(){ try{ const d=await fdb.collection("meta").doc("practiceCfg").get(); if(d.exists&&d.data().gameHours)gameHours=+d.data().gameHours; }catch(_){} }
@@ -927,6 +990,8 @@ $("p-days").innerHTML=DAYS.map((d,i)=>`<label class="chk"><input type="checkbox"
 $("p-rep").onchange=()=>{ $("p-repBox").hidden=!$("p-rep").checked; };
 $("p-fac").onchange=()=>{ $("p-otherWrap").hidden=$("p-fac").value!=="Other"; };
 $("pClose").onclick=closeSheet;
+$("obClose").onclick=closeSheet;
+$("obCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText(location.href.split("#")[0]); toast("Link copied. Paste it into Safari or Chrome."); }catch(_){ prompt("Copy this link:",location.href.split("#")[0]); } };
 $("addPBtn").onclick=()=>openPractice(null);
 function openPractice(x,date){
   editingP=x?x.id:null; pWasCancelled=!!(x&&x.cancelled); showSheet("pSheet"); $("perr").textContent="";
@@ -953,7 +1018,10 @@ async function findConflicts(entries){
   const ds=list.map(e=>e.date).sort();
   const sn=await gamesCol().where("date",">=",ds[0]).where("date","<=",ds[ds.length-1]).get();
   const gs=sn.docs.map(d=>d.data()).filter(g=>g.ha==="H"&&!g.cancelled&&g.facility);
+  const es=(await fdb.collection("events").where("date",">=",ds[0]).where("date","<=",ds[ds.length-1]).get()).docs.map(d=>d.data()).filter(x=>x.facility&&x.facility!=="Other");
   const out=[];
+  list.forEach(e=>{ const ps=tmin(e.start), pe=tmin(e.end);
+    es.filter(x=>x.date===e.date&&x.facility===e.facility).forEach(x=>{ const hit=x.allDay?true:(ps<tmin(x.end)&&tmin(x.start)<pe); if(hit)out.push({date:x.date,label:"Event: "+x.title+" ("+eWhen(x)+")"}); }); });
   list.forEach(e=>{ const ps=tmin(e.start), pe=tmin(e.end);
     gs.filter(g=>g.date===e.date&&g.facility===e.facility).forEach(g=>{ const gm=mins(g.time);
       const hit=gm===9999?true:(ps<gm+gameHours*60&&gm<pe); if(hit)out.push(g); }); });
@@ -978,7 +1046,7 @@ $("pForm").addEventListener("submit",async e=>{
   try{
     const entries=dates.map(dt=>Object.assign({date:dt},base));
     const conf=base.cancelled?[]:await findConflicts(entries);
-    if(conf.length){ $("perr").innerHTML="Not saved. These home games use "+esc(base.facility)+" at that time:<br>"+conf.slice(0,8).map(g=>esc(fmtDate(g.date)+" "+(g.time||"TBA")+" "+g.team+" vs "+g.opp)).join("<br>")+(conf.length>8?"<br>…and "+(conf.length-8)+" more":""); $("pSave").disabled=false; return; }
+    if(conf.length){ $("perr").innerHTML="Not saved. "+esc(base.facility)+" is already booked at that time:<br>"+conf.slice(0,8).map(g=>esc(fmtDate(g.date)+" "+(g.label||((g.time||"TBA")+" "+g.team+" vs "+g.opp)))).join("<br>")+(conf.length>8?"<br>…and "+(conf.length-8)+" more":""); $("pSave").disabled=false; return; }
     const by=(fauth.currentUser&&fauth.currentUser.email)||"";
     if(editingP){
       const ref=pracCol().doc(editingP); const old=practices.find(y=>y.id===editingP)||{};
@@ -1014,6 +1082,46 @@ async function notifyAD(x,by){
       body:"A practice was cancelled on the athletics schedule.\n\nTeam: "+x.team+"\nDate: "+fmtDate(x.date)+"\nTime: "+fmt12(x.start)+" - "+fmt12(x.end)+"\nLocation: "+pLoc(x)+(x.notes?"\nNotes: "+x.notes:"")+"\nCancelled by: "+by})});
   }catch(_){}
 }
+// ---- events (GS Secretary / AD) ----
+$("addEBtn").onclick=()=>openEvent(null);
+$("eClose").onclick=closeSheet;
+$("ev-all").onchange=()=>{ $("ev-times").hidden=$("ev-all").checked; };
+$("ev-fac").onchange=()=>{ $("ev-otherWrap").hidden=$("ev-fac").value!=="Other"; };
+function openEvent(x,date){
+  editingE=x?x.id:null; showSheet("eSheet"); $("everr").textContent="";
+  if(canEdit||canEvents){
+    $("eForm").hidden=false; $("eRo").hidden=true; $("eTitle").textContent=x?"Edit event":"Add event";
+    $("ev-title").value=x?x.title:""; $("ev-date").value=x?x.date:(date||todayIso);
+    $("ev-fac").value=x?(x.facility||""):"GS gym"; $("ev-other").value=x?x.other||"":""; $("ev-otherWrap").hidden=$("ev-fac").value!=="Other";
+    $("ev-all").checked=!!(x&&x.allDay); $("ev-times").hidden=$("ev-all").checked;
+    $("ev-start").value=x?x.start||"":""; $("ev-end").value=x?x.end||"":""; $("ev-notes").value=x?x.notes||"":"";
+    $("eDel").hidden=!x;
+  } else {
+    $("eForm").hidden=true; $("eRo").hidden=false; $("eTitle").textContent=x.title;
+    $("eRo").innerHTML=`<dl class="ro"><dt>Date</dt><dd>${fmtDate(x.date)}</dd><dt>Time</dt><dd>${esc(eWhen(x))}</dd><dt>Location</dt><dd>${esc(pLoc(x))}</dd>${x.notes?`<dt>Notes</dt><dd>${esc(x.notes)}</dd>`:""}</dl><div class="row" style="margin-top:16px"><button class="btn" id="eRoClose">Close</button></div>`;
+    $("eRoClose").onclick=closeSheet;
+  }
+}
+$("eForm").addEventListener("submit",async e=>{
+  e.preventDefault(); $("everr").textContent="";
+  const x={title:$("ev-title").value.trim(),date:$("ev-date").value,allDay:$("ev-all").checked,start:$("ev-all").checked?"":$("ev-start").value,end:$("ev-all").checked?"":$("ev-end").value,facility:$("ev-fac").value,other:$("ev-fac").value==="Other"?$("ev-other").value.trim():"",notes:$("ev-notes").value.trim()};
+  if(!x.title||!x.date){ $("everr").textContent="Event name and date are required."; return; }
+  if(!x.allDay&&(!x.start||!x.end||tmin(x.end)<=tmin(x.start))){ $("everr").textContent="Add a start and end time (end after start), or check All day."; return; }
+  if(x.facility==="Other"&&!x.other){ $("everr").textContent="Type the other location."; return; }
+  $("eSave").disabled=true;
+  try{ const by=(fauth.currentUser&&fauth.currentUser.email)||"";
+    if(editingE)await fdb.collection("events").doc(editingE).set(Object.assign({},x,{updatedBy:by,updatedAt:Date.now()}),{merge:true});
+    else await fdb.collection("events").add(Object.assign({},x,{createdBy:by,createdAt:Date.now()}));
+    toast(editingE?"Event saved":"Event added"); closeSheet();
+  }catch(err){ $("everr").textContent=denied(err)?"You don't have permission to add events.":"Couldn't save. Check your connection and try again."; }
+  $("eSave").disabled=false;
+});
+let eDelArmed=false;
+$("eDel").onclick=async()=>{ if(!editingE)return;
+  if(!eDelArmed){ eDelArmed=true; $("eDel").textContent="Click again to delete"; setTimeout(()=>{eDelArmed=false;$("eDel").textContent="Delete";},2500); return; }
+  eDelArmed=false; $("eDel").textContent="Delete";
+  try{ await fdb.collection("events").doc(editingE).delete(); toast("Event deleted"); closeSheet(); }catch(e){ $("everr").textContent="Couldn't delete. Check your connection."; } };
+
 // ---- coaches (AD) ----
 const coachCol=()=>fdb.collection("coaches");
 let coachesList=[];
@@ -1025,19 +1133,20 @@ function allTeams(){ return [...new Set(teamList.concat(games.map(g=>g.team)))].
 function drawCoachTeams(sel){ $("c-teams").innerHTML=allTeams().map(t=>`<label class="chk"><input type="checkbox" value="${esc(t)}"${sel.includes(t)?" checked":""}> ${esc(t)}</label>`).join(""); }
 async function loadCoaches(){
   try{ const sn=await coachCol().get(); coachesList=sn.docs.map(d=>Object.assign({email:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(b.name));
-    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.6fr) auto auto"><span><b>${esc(c.name||"")}</b></span><span>${esc(c.email)}</span><span class="small">${esc((c.teams||[]).join(", "))}</span><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
+    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.6fr) auto auto"><span><b>${esc(c.name||"")}</b></span><span>${esc(c.email)}</span><span class="small">${c.role==="events"?"Events only":esc((c.teams||[]).join(", "))}</span><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
   }catch(_){ $("coachList").innerHTML='<p class="err">Couldn\'t load coaches.</p>'; }
 }
 $("coachList").addEventListener("click",async e=>{
-  const ed=e.target.closest("[data-cedit]"); if(ed){ const c=coachesList.find(x=>x.email===ed.dataset.cedit); $("c-name").value=c.name||""; $("c-email").value=c.email; drawCoachTeams(c.teams||[]); return; }
-  const dl=e.target.closest("[data-cdel]"); if(dl){ if(!confirm("Remove "+dl.dataset.cdel+"? They will no longer be able to edit practices."))return; try{ await coachCol().doc(dl.dataset.cdel).delete(); toast("Removed"); loadCoaches(); }catch(_){ toast("Couldn't remove."); } }
+  const ed=e.target.closest("[data-cedit]"); if(ed){ const c=coachesList.find(x=>x.email===ed.dataset.cedit); $("c-name").value=c.name||""; $("c-email").value=c.email; $("c-role").value=c.role==="events"?"events":"coach"; $("c-teamsWrap").hidden=c.role==="events"; drawCoachTeams(c.teams||[]); return; }
+  const dl=e.target.closest("[data-cdel]"); if(dl){ if(!confirm("Remove "+dl.dataset.cdel+"? They will no longer be able to edit the schedule."))return; try{ await coachCol().doc(dl.dataset.cdel).delete(); toast("Removed"); loadCoaches(); }catch(_){ toast("Couldn't remove."); } }
 });
+$("c-role").onchange=()=>{ $("c-teamsWrap").hidden=$("c-role").value==="events"; };
 $("c-add").onclick=async()=>{
-  const email=$("c-email").value.trim().toLowerCase(), name=$("c-name").value.trim(), teams=[...document.querySelectorAll("#c-teams input:checked")].map(c=>c.value);
+  const role=$("c-role").value, email=$("c-email").value.trim().toLowerCase(), name=$("c-name").value.trim(), teams=role==="events"?[]:[...document.querySelectorAll("#c-teams input:checked")].map(c=>c.value);
   $("cerr2").textContent="";
-  if(!/^[^@\s]+@[^@\s]+$/.test(email)){ $("cerr2").textContent="Type the coach's school email."; return; }
-  if(!teams.length){ $("cerr2").textContent="Pick at least one team."; return; }
-  try{ await coachCol().doc(email).set({name,teams}); toast("Coach saved"); $("c-name").value=$("c-email").value=""; drawCoachTeams([]); loadCoaches(); }catch(_){ $("cerr2").textContent="Couldn't save. Check your connection."; }
+  if(!/^[^@\s]+@[^@\s]+$/.test(email)){ $("cerr2").textContent="Type their school email."; return; }
+  if(role!=="events"&&!teams.length){ $("cerr2").textContent="Pick at least one team."; return; }
+  try{ await coachCol().doc(email).set({name,teams,role}); toast("Coach saved"); $("c-name").value=$("c-email").value=""; $("c-role").value="coach"; $("c-teamsWrap").hidden=false; drawCoachTeams([]); loadCoaches(); }catch(_){ $("cerr2").textContent="Couldn't save. Check your connection."; }
 };
 async function loadLog(){
   try{ const sn=await fdb.collection("practiceLog").orderBy("at","desc").limit(100).get();
@@ -1309,6 +1418,7 @@ $("i-file").onchange=async()=>{
   const rows=parseCSV(await f.text()); if(rows.length<2){ $("ierr").textContent="That file has no rows."; return; }
   const H=rows[0].map(h=>h.trim().toLowerCase().replace(/[^a-z0-9]/g,""));
   const ix=n=>H.indexOf(n);
+  if(ix("start")>=0&&ix("end")>=0){ await previewPractices(rows,ix); return; }
   const c={date:ix("date"),team:ix("team"),opp:ix("opponent"),time:ix("time"),ha:ix("homeaway"),fac:ix("facility"),depart:ix("busdeparts"),tent:ix("maychange"),cx:ix("cancelled"),of:[ix("official1"),ix("official2"),ix("official3")],oc:ix("officialsconfirmed"),wk:{admin:ix("admin"),book:ix("scorebook"),clock:ix("mainclock"),clock2:ix("clock2"),gate:ix("gate"),conc:ix("concessions"),nurse:ix("nurse")}};
   if(c.date<0||c.team<0||c.opp<0){ $("ierr").textContent="The file needs date, team, and opponent columns."; return; }
   const items=[], bad=[];
@@ -1316,7 +1426,7 @@ $("i-file").onchange=async()=>{
     const fields={};
     if(c.time>=0&&r[c.time].trim())fields.time=r[c.time].trim();
     if(c.ha>=0&&r[c.ha].trim())fields.ha=/^a/i.test(r[c.ha].trim())?"A":"H";
-    if(c.fac>=0&&r[c.fac].trim())fields.facility=/gym/i.test(r[c.fac])?"HS gym":/park/i.test(r[c.fac])?"Park field":/school/i.test(r[c.fac])?"School field":/field|base|soft/i.test(r[c.fac])?"School field":"";
+    if(c.fac>=0&&r[c.fac].trim())fields.facility=/\bgs\b|grade/i.test(r[c.fac])?"GS gym":/gym/i.test(r[c.fac])?"HS gym":/park/i.test(r[c.fac])?"Park field":/school/i.test(r[c.fac])?"School field":/field|base|soft/i.test(r[c.fac])?"School field":"";
     if(c.depart>=0&&r[c.depart].trim())fields.depart=r[c.depart].trim();
     if(c.tent>=0&&r[c.tent].trim())fields.tent=/^(y|yes|true|1)$/i.test(r[c.tent].trim());
     if(c.cx>=0&&r[c.cx]&&r[c.cx].trim())fields.cancelled=/^(y|yes|true|1)$/i.test(r[c.cx].trim());
@@ -1339,7 +1449,43 @@ $("i-file").onchange=async()=>{
     $("i-newWrap").hidden=!add.length; $("i-new").checked=false; $("i-go").disabled=!(upd.length||add.length);
   }catch(e){ $("ierr").textContent=denied(e)?"You don't have permission to change the schedule.":"Couldn't check the file against the schedule. Try again."; }
 };
+function to24(t){ t=String(t||"").trim(); let m=t.match(/^(\d{1,2}):(\d{2})\s*([AP])\.?M\.?$/i); if(m){ let h=+m[1]%12; if(m[3].toUpperCase()==="P")h+=12; return pad(h)+":"+m[2]; } m=t.match(/^(\d{1,2}):(\d{2})$/); if(m&&+m[1]<24)return pad(+m[1])+":"+m[2]; return ""; }
+async function previewPractices(rows,ix){
+  const c={date:ix("date"),team:ix("team"),start:ix("start"),end:ix("end"),loc:ix("location"),notes:ix("notes")};
+  if(c.date<0||c.team<0){ $("ierr").textContent="A practice file needs date, team, start, and end columns."; return; }
+  const items=[], bad=[];
+  rows.slice(1).forEach((r,i)=>{ if(!r.some(v=>String(v).trim()))return; const d=normDate(r[c.date]||""), team=String(r[c.team]||"").trim(), st=to24(r[c.start]), en=to24(r[c.end]);
+    if(!d||!team||!st||!en||tmin(en)<=tmin(st)){ bad.push("Row "+(i+2)+": missing or unreadable date, team, or times"); return; }
+    const lv=c.loc>=0?String(r[c.loc]||"").trim():""; let facility="", other="";
+    if(lv){ const k=Object.keys(FAC).find(k=>k.toLowerCase()===lv.toLowerCase()); if(k)facility=k; else { facility="Other"; other=lv; } }
+    items.push({date:d,team,start:st,end:en,facility,other,notes:c.notes>=0?String(r[c.notes]||"").trim():"",cancelled:false}); });
+  if(!items.length){ $("ierr").textContent="No usable practice rows in that file."; return; }
+  try{
+    const conf=[]; const ok=[];
+    for(const x of items){ const cf=await findConflicts([x]); if(cf.length)conf.push([x,cf[0]]); else ok.push(x); }
+    const ds=items.map(x=>x.date).sort(); const ex=await pracCol().where("date",">=",ds[0]).where("date","<=",ds[ds.length-1]).get();
+    const have=new Set(ex.docs.map(d=>{ const x=d.data(); return x.date+"|"+x.team+"|"+x.start; }));
+    const fresh=ok.filter(x=>!have.has(x.date+"|"+x.team+"|"+x.start)), dup=ok.length-fresh.length;
+    const noLoc=fresh.filter(x=>!x.facility).length;
+    plan={kind:"practices",items:fresh};
+    const li=a=>a.slice(0,40).map(s=>`<li>${esc(s)}</li>`).join("")+(a.length>40?`<li>…and ${a.length-40} more</li>`:"");
+    $("i-preview").innerHTML=`<div class="ipv"><div><span class="ok">${fresh.length}</span> practices will be added.${noLoc?` ${noLoc} have no location yet (they show as "Location not set").`:""}</div>`+
+      (dup?`<div style="margin-top:6px">${dup} are already on the schedule and will be skipped.</div>`:"")+
+      (conf.length?`<div style="margin-top:6px"><span class="bad">${conf.length}</span> overlap a home game or event at the same venue and will NOT be added:<ul>${li(conf.map(([x,g])=>fmtDate(x.date)+" "+fmt12(x.start)+"–"+fmt12(x.end)+" "+x.team+" (conflicts with "+(g.label||(g.team+" vs "+g.opp+" "+(g.time||"TBA")))+")"))}</ul></div>`:"")+
+      (bad.length?`<div style="margin-top:6px"><span class="bad">${bad.length}</span> rows skipped:<ul>${li(bad)}</ul></div>`:"")+`</div>`;
+    $("i-newWrap").hidden=true; $("i-go").disabled=!fresh.length;
+  }catch(e){ $("ierr").textContent="Couldn't check the file against the schedule. Try again."; }
+}
 $("i-go").onclick=async()=>{
+  if(plan&&plan.kind==="practices"){
+    if(!canEdit)return; $("i-go").disabled=true;
+    try{ const by=(fauth.currentUser&&fauth.currentUser.email)||"";
+      for(let i=0;i<plan.items.length;i+=400){ const b=fdb.batch(); plan.items.slice(i,i+400).forEach(x=>b.set(pracCol().doc(),Object.assign({},x,{series:"",createdBy:by,createdAt:Date.now()}))); await b.commit(); }
+      await addTeams([...new Set(plan.items.map(x=>x.team))]);
+      toast("Added "+plan.items.length+" practices"); closeSheet();
+    }catch(e){ $("ierr").textContent=denied(e)?"You don't have permission to add practices.":"Couldn't add them. Try again."; }
+    $("i-go").disabled=false; return;
+  }
   if(!plan||!canEdit)return;
   const addNew=$("i-new").checked;
   const adds=addNew?plan.add:[];
