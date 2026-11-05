@@ -201,6 +201,10 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
   .list td[data-label]:first-child::before{content:none}
   .list td:first-child{font-weight:700;font-size:15px}
 }
+.srow.crow{grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) auto auto;align-items:center}
+.crow .cwho,.crow .cteams{min-width:0;overflow-wrap:anywhere}
+.crow .cwho .small{margin-top:2px}
+@media (max-width:560px){.srow.crow{display:flex;flex-wrap:wrap;gap:6px 8px}.crow .cwho,.crow .cteams{flex:1 1 100%}}
 .btn.undo{border-color:var(--ink);font-weight:700;max-width:340px;overflow:hidden;text-overflow:ellipsis}
 .ipv{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px}
 .ipv ul{margin:6px 0 0;padding-left:18px;max-height:220px;overflow:auto}
@@ -1133,7 +1137,7 @@ function allTeams(){ return [...new Set(teamList.concat(games.map(g=>g.team)))].
 function drawCoachTeams(sel){ $("c-teams").innerHTML=allTeams().map(t=>`<label class="chk"><input type="checkbox" value="${esc(t)}"${sel.includes(t)?" checked":""}> ${esc(t)}</label>`).join(""); }
 async function loadCoaches(){
   try{ const sn=await coachCol().get(); coachesList=sn.docs.map(d=>Object.assign({email:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(b.name));
-    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.6fr) auto auto"><span><b>${esc(c.name||"")}</b></span><span>${esc(c.email)}</span><span class="small">${c.role==="events"?"Events only":esc((c.teams||[]).join(", "))}</span><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
+    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow crow"><div class="cwho"><b>${esc(c.name||"")}</b><div class="small muted">${esc(c.email)}</div></div><div class="small cteams">${c.role==="events"?"Events only (GS Secretary)":esc((c.teams||[]).join(", "))}</div><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
   }catch(_){ $("coachList").innerHTML='<p class="err">Couldn\'t load coaches.</p>'; }
 }
 $("coachList").addEventListener("click",async e=>{
