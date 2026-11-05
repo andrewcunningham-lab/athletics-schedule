@@ -158,6 +158,49 @@ textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px
 button.slot.open{border:1.5px dashed var(--ink);cursor:pointer;font-weight:700}
 button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
 .btn.mini{padding:2px 9px;font-size:12.5px;margin-left:6px}
+.ev .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;border:1px solid currentColor;border-radius:3px;padding:0 4px;margin-right:4px}
+.ev.pr{border-left-style:solid}
+.ev.gov{border-style:dashed;border-left:4px dashed var(--c);opacity:.85;background:transparent}
+.day .cnt{display:none}
+#moreBtn{display:none}
+.daylist{display:none}
+@media (max-width:700px){
+  .tools{gap:8px}
+  .tools .seg{flex:1 1 100%;display:flex}
+  .tools .seg button{flex:1;padding:8px 6px}
+  .tools .lbl{display:none}
+  #moreBtn:not([hidden]){display:inline-flex;justify-content:center}
+  .tools:not(.open) .admintool{display:none!important}
+  .day .n{flex-direction:column;gap:3px}
+  .tools select{flex:1 1 60%;min-width:0}
+  .tools .spacer{display:none}
+  .tools .btn{flex:1 1 calc(50% - 4px)}
+  .mhead{flex-wrap:wrap;gap:8px}
+  .mhead h2{font-size:21px;flex:1 1 auto;min-width:0;text-align:center}
+  .key{order:9;width:100%;font-size:12px;gap:4px 12px;justify-content:center}
+  .gridwrap{overflow:visible}
+  .grid{min-width:0;grid-template-columns:repeat(7,minmax(0,1fr))}
+  .dow{padding:5px 0;text-align:center;font-size:11px;letter-spacing:.03em}
+  .day{min-height:54px;padding:4px 2px;align-items:center;cursor:pointer;gap:3px}
+  .day .ev,.day .fac,.day .add{display:none}
+  .day .n{justify-content:center;font-size:15px}
+  .day .cnt{display:block;font-size:11px;font-weight:700;line-height:1;border:1.5px solid var(--ink);color:var(--ink);border-radius:9px;min-width:18px;padding:2px 4px;text-align:center}
+  .day.sel{background:var(--bg);box-shadow:inset 0 0 0 2px var(--ink)}
+  .daylist{display:block;margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px}
+  .daylist h3{margin:0 0 8px;font-family:var(--display);font-size:18px;text-transform:uppercase;letter-spacing:.03em}
+  .daylist .dl-items{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+  .daylist .ev{font-size:15px;padding:8px 10px}
+  .daylist .ev .t{font-size:13.5px}
+  .daylist .flag{align-self:flex-start}
+  .list{border:0;background:transparent;overflow:visible}
+  .list table,.list tbody,.list tr,.list td{display:block;width:auto;min-width:0}
+  .list thead{display:none}
+  .list tr{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:8px 12px;margin-bottom:8px}
+  .list td{border:0!important;padding:2px 0!important}
+  .list td[data-label]:not(:empty)::before{content:attr(data-label) ": ";font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .list td[data-label]:first-child::before{content:none}
+  .list td:first-child{font-weight:700;font-size:15px}
+}
 .btn.undo{border-color:var(--ink);font-weight:700;max-width:340px;overflow:hidden;text-overflow:ellipsis}
 .ipv{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px}
 .ipv ul{margin:6px 0 0;padding-left:18px;max-height:220px;overflow:auto}
@@ -200,6 +243,10 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
 
 <div class="wrap">
   <div class="tools">
+    <div class="seg" role="group" aria-label="Schedule">
+      <button id="m-games" aria-pressed="true">Games</button>
+      <button id="m-prac" aria-pressed="false">Practices</button>
+    </div>
     <div class="seg" role="group" aria-label="View">
       <button id="v-cal" aria-pressed="true">Calendar</button>
       <button id="v-list" aria-pressed="false">Schedule list</button>
@@ -211,21 +258,25 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
       <option value="School field">School field bookings</option>
       <option value="Park field">Park field bookings</option>
     </select>
+    <label class="chk" id="pGamesWrap" hidden><input type="checkbox" id="pGames"> Show games</label>
     <label class="lbl" for="fTeam">Team</label>
     <select id="fTeam"><option value="">All teams</option></select>
     <span class="spacer"></span>
+    <button class="btn" id="moreBtn" hidden aria-expanded="false">AD tools ▾</button>
     <button class="btn" id="wkBtn">Sign up to work</button>
     <button class="btn" id="exportBtn">Export</button>
-    <button class="btn" id="fileBtn" hidden>Import file</button>
-    <button class="btn" id="mirrorBtn" hidden>Mirror season</button>
-    <button class="btn" id="backupBtn" hidden>Download backup</button>
-    <button class="btn" id="renameBtn" hidden>Rename team</button>
-    <button class="btn" id="refBtn" hidden>Officials</button>
-    <button class="btn" id="cfBtn" hidden>Game confirmations</button>
-    <button class="btn" id="dupBtn" hidden>Find duplicates</button>
+    <button class="btn admintool" id="fileBtn" hidden>Import file</button>
+    <button class="btn admintool" id="mirrorBtn" hidden>Mirror season</button>
+    <button class="btn admintool" id="backupBtn" hidden>Download backup</button>
+    <button class="btn admintool" id="renameBtn" hidden>Rename team</button>
+    <button class="btn admintool" id="refBtn" hidden>Officials</button>
+    <button class="btn admintool" id="cfBtn" hidden>Game confirmations</button>
+    <button class="btn admintool" id="dupBtn" hidden>Find duplicates</button>
     <button class="btn undo" id="undoBtn" hidden>Undo</button>
-    <button class="btn" id="importBtn" hidden>Load starter basketball schedule</button>
+    <button class="btn admintool" id="importBtn" hidden>Load starter basketball schedule</button>
+    <button class="btn admintool" id="coachBtn" hidden>Coaches</button>
     <button class="btn primary" id="addBtn" hidden>+ Add game</button>
+    <button class="btn primary" id="addPBtn" hidden>+ Add practice</button>
   </div>
 
     <div class="mhead">
@@ -237,11 +288,12 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
     </div>
   <div id="calView">
     <div class="gridwrap"><div class="grid" id="grid"></div></div>
+    <div id="dayList" class="daylist"></div>
   </div>
 
   <div id="listView" hidden>
     <div class="list"><table>
-      <thead><tr><th>Date</th><th>Time</th><th>Team</th><th></th><th>Opponent / event</th><th>Facility</th><th>Bus departs</th></tr></thead>
+      <thead id="lhead"><tr><th>Date</th><th>Time</th><th>Team</th><th></th><th>Opponent / event</th><th>Facility</th><th>Bus departs</th></tr></thead>
       <tbody id="rows"></tbody>
     </table></div>
   </div>
@@ -346,6 +398,61 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
     <div class="row"><button class="btn primary" id="d-go" disabled>Remove unchecked games</button><button class="btn" id="d-cancel">Close</button></div>
   </div>
 </aside>
+<aside class="sheet" id="pSheet" hidden role="dialog" aria-labelledby="pTitle">
+  <h3 id="pTitle">Practice</h3>
+  <form class="form" id="pForm" autocomplete="off" hidden>
+    <label><span class="lbl">Team</span><select id="p-team"></select></label>
+    <div class="two">
+      <label><span class="lbl">Date</span><input type="date" id="p-date" required></label>
+      <label><span class="lbl">Location</span><select id="p-fac"><option>HS gym</option><option>School field</option><option>Park field</option><option value="Other">Other</option></select></label>
+    </div>
+    <label id="p-otherWrap" hidden><span class="lbl">Other location</span><input type="text" id="p-other"></label>
+    <div class="two">
+      <label><span class="lbl">Start</span><input type="time" id="p-start" required></label>
+      <label><span class="lbl">End</span><input type="time" id="p-end" required></label>
+    </div>
+    <label><span class="lbl">Notes (optional)</span><input type="text" id="p-notes"></label>
+    <div id="p-repWrap">
+      <label class="chk"><input type="checkbox" id="p-rep"> Repeat weekly</label>
+      <div id="p-repBox" hidden class="form" style="margin-top:6px">
+        <div class="row" id="p-days" style="gap:10px;flex-wrap:wrap"></div>
+        <label><span class="lbl">Until</span><input type="date" id="p-until"></label>
+      </div>
+    </div>
+    <label class="chk" id="p-cancelWrap"><input type="checkbox" id="p-cancel"> Cancelled (stays on the schedule; the AD office is notified)</label>
+    <p class="err" id="perr"></p>
+    <div class="row">
+      <button class="btn primary" type="submit" id="pSave">Save</button>
+      <button class="btn" type="button" id="pClose">Cancel</button>
+      <span class="spacer"></span>
+      <button class="btn danger" type="button" id="pDel" hidden>Delete</button>
+    </div>
+  </form>
+  <div id="pRo" hidden></div>
+</aside>
+<aside class="sheet wide" id="cSheet" hidden role="dialog" aria-labelledby="cTitle">
+  <h3 id="cTitle">Coaches</h3>
+  <div class="seg" role="group" aria-label="Coaches view" style="align-self:flex-start;margin-bottom:10px"><button id="ct2-list" aria-pressed="true">Head coaches</button><button id="ct2-log" aria-pressed="false">Cancellation log</button><button id="ct2-set" aria-pressed="false">Settings</button></div>
+  <div id="cp2-list">
+    <p class="small muted">Head coaches sign in with their school Google account. They can add, edit, cancel, and delete practices for their own teams only.</p>
+    <div class="form">
+      <div class="two"><label><span class="lbl">Name</span><input type="text" id="c-name"></label><label><span class="lbl">School email</span><input type="text" id="c-email"></label></div>
+      <div><span class="lbl">Teams</span><div id="c-teams" class="row" style="flex-wrap:wrap;gap:8px 14px;margin-top:4px"></div></div>
+      <div class="row"><button class="btn primary" id="c-add">Save coach</button></div>
+      <p class="err" id="cerr2"></p>
+    </div>
+    <div id="coachList"></div>
+  </div>
+  <div id="cp2-log" hidden><div id="logList"></div></div>
+  <div id="cp2-set" hidden>
+    <div class="form">
+      <label><span class="lbl">A home game blocks its venue for this many hours from its start time</span><input type="number" id="s-hours" min="1" max="6" step="0.5"></label>
+      <p class="small muted">Practices that overlap a home game at the same venue are rejected. A home game with no time (TBA) blocks its venue all day.</p>
+      <div class="row"><button class="btn primary" id="s-save">Save</button></div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="c-close">Close</button></div>
+</aside>
 <aside class="sheet wide" id="wkSheet" hidden role="dialog" aria-labelledby="wkTitle">
   <h3 id="wkTitle">Sign up to work</h3>
   <p class="small muted" id="wkNote">Home games in the next 60 days. Sign in with Google, then click an open spot to take it.</p>
@@ -428,10 +535,11 @@ function defaultPos(g){ const t=g.team||""; if(/music/i.test(t))return []; if(/b
 const posFor=g=>Array.isArray(g.pos)?g.pos:defaultPos(g);
 const hasWork=g=>g.ha==="H"&&!g.cancelled&&g.team!=="Music";
 const LOGO=document.querySelector(".brand img").src;
+let practices=[], mode="games", coachTeams=[], gameHours=2, unsubPrac=null, editingP=null, pWasCancelled=false;
 let games=[], teamList=[], canEdit=false, view="cal", editingId=null, loaded=false, metaExists=null;
 let cur=new Date(); cur.setDate(1);
-try{ const s=JSON.parse(localStorage.getItem("sandovalSched")||"{}"); if(s.view)view=s.view; if(s.fac)$("fFac").value=s.fac; if(s.team!==undefined)window.__team=s.team; }catch(e){}
-function savePref(){ try{ localStorage.setItem("sandovalSched",JSON.stringify({view,fac:$("fFac").value,team:$("fTeam").value})); }catch(e){} }
+try{ const s=JSON.parse(localStorage.getItem("sandovalSched")||"{}"); if(s.view)view=s.view; if(s.mode)mode=s.mode; if(s.pg)$("pGames").checked=true; if(s.fac)$("fFac").value=s.fac; if(s.team!==undefined)window.__team=s.team; }catch(e){}
+function savePref(){ try{ localStorage.setItem("sandovalSched",JSON.stringify({view,mode,pg:$("pGames").checked,fac:$("fFac").value,team:$("fTeam").value})); }catch(e){} }
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function mins(t){ const m=String(t||"").match(/(\d{1,2}):(\d{2})\s*([AP])M/i); if(!m)return 9999; let h=+m[1]%12; if(m[3].toUpperCase()==="P")h+=12; return h*60+ +m[2]; }
 function sortGames(a,b){ return a.date<b.date?-1:a.date>b.date?1:(mins(a.time)-mins(b.time))||String(a.team).localeCompare(b.team); }
@@ -452,11 +560,50 @@ function fillTeams(){
   $("x-team").innerHTML='<option value="">All teams</option>'+list.map(t=>`<option>${esc(t)}</option>`).join("");
 }
 
+const canPractice=()=>canEdit||coachTeams.length>0;
+const myTeam=t=>canEdit||coachTeams.includes(t);
+function fmt12(t){ const m=String(t||"").match(/^(\d{1,2}):(\d{2})/); if(!m)return ""; let h=+m[1], ap=h>=12?"PM":"AM"; h=h%12||12; return h+":"+m[2]+" "+ap; }
+const tmin=t=>{ const m=String(t||"").match(/^(\d{1,2}):(\d{2})/); return m?(+m[1])*60+ +m[2]:0; };
+const pLoc=x=>x.facility==="Other"?(x.other||"Other"):x.facility;
+const sortP=(a,b)=>a.date<b.date?-1:a.date>b.date?1:tmin(a.start)-tmin(b.start)||String(a.team).localeCompare(b.team);
 function render(){
+  const P=mode==="practices";
+  $("m-games").setAttribute("aria-pressed",!P); $("m-prac").setAttribute("aria-pressed",P);
+  $("pGamesWrap").hidden=!(P&&canPractice()); $("addBtn").hidden=!(canEdit&&!P); $("addPBtn").hidden=!(P&&canPractice());
+  $("fFac").options[0].textContent=P?"All locations":"All games";
   $("v-cal").setAttribute("aria-pressed",view==="cal"); $("v-list").setAttribute("aria-pressed",view==="list");
   $("calView").hidden=view!=="cal"; $("listView").hidden=view!=="list"; $("calKey").hidden=view!=="cal";
   $("mtitle").textContent=MN[cur.getMonth()]+" "+cur.getFullYear();
-  view==="cal"?renderCal():renderList();
+  if(P){ view==="cal"?renderPCal():renderPList(); labelRows(); if(view!=="cal")$("dayList").innerHTML=""; return; }
+  $("lhead").innerHTML="<tr><th>Date</th><th>Time</th><th>Team</th><th></th><th>Opponent / event</th><th>Facility</th><th>Bus departs</th></tr>";
+  view==="cal"?renderCal():renderList(); labelRows(); if(view!=="cal")$("dayList").innerHTML="";
+}
+function labelRows(){ const hs=[...document.querySelectorAll("#lhead th")].map(t=>t.textContent); document.querySelectorAll("#rows tr").forEach(tr=>[...tr.children].forEach((td,i)=>{ if(hs[i])td.dataset.label=hs[i]; })); }
+function pChip(x){ return `<button class="ev pr${x.cancelled?" cancel":""}" data-pid="${esc(x.id)}" style="--c:${FAC[x.facility]?"var(--"+FAC[x.facility].c+")":"var(--muted)"}">${x.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><span class="tag">PRACTICE</span><b>${esc(x.team)}</b></span><span class="t">${esc(fmt12(x.start))}–${esc(fmt12(x.end))} · ${esc(pLoc(x))}</span></button>`; }
+function renderPCal(){
+  const y=cur.getFullYear(), m=cur.getMonth(), fac=$("fFac").value, team=$("fTeam").value, showG=canPractice()&&$("pGames").checked;
+  const byDay={}; practices.forEach(x=>{(byDay[x.date]=byDay[x.date]||[]).push(x)});
+  const gDay={}; if(showG)games.forEach(g=>{(gDay[g.date]=gDay[g.date]||[]).push(g)});
+  let h=DN.map(d=>`<div class="dow">${d}</div>`).join("");
+  const start=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate();
+  for(let i=0;i<start;i++)h+=`<div class="day out"></div>`;
+  for(let d=1;d<=days;d++){
+    const key=y+"-"+pad(m+1)+"-"+pad(d);
+    const ps=(byDay[key]||[]).filter(x=>(fac==="all"||x.facility===fac)&&(!team||x.team===team)).sort(sortP);
+    const gs=(gDay[key]||[]).filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team)).sort(sortGames);
+    h+=`<div data-day="${key}" class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canPractice()?`<button class="add" data-padd="${key}" aria-label="Add practice on ${MN[m]} ${d}">+</button>`:""}</div>`+
+      gs.map(g=>`<button class="ev gov${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}"><span class="who"><span class="tag">GAME</span><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.facility?" · "+esc(g.facility):""}</span></button>`).join("")+
+      ps.map(pChip).join("")+`</div>`;
+  }
+  const tail=(7-((start+days)%7))%7; for(let i=0;i<tail;i++)h+=`<div class="day out"></div>`;
+  $("grid").innerHTML=h; mobileDays();
+}
+function renderPList(){
+  $("lhead").innerHTML="<tr><th>Date</th><th>Time</th><th>Team</th><th>Location</th><th>Notes</th></tr>";
+  const fac=$("fFac").value, team=$("fTeam").value;
+  const list=practices.filter(x=>(fac==="all"||x.facility===fac)&&(!team||x.team===team)).sort(sortP);
+  if(!list.length){ $("rows").innerHTML=`<tr><td colspan="5"><div class="empty"><b>No practices this month</b>Use the arrows to move to another month.</div></td></tr>`; return; }
+  $("rows").innerHTML=list.map(x=>`<tr data-pid="${esc(x.id)}"${x.cancelled?' class="cancel"':""}><td class="d">${fmtDate(x.date)}${x.cancelled?'<div><span class="cx">CANCELLED</span></div>':""}</td><td class="d">${esc(fmt12(x.start))}–${esc(fmt12(x.end))}</td><td class="strike">${esc(x.team)}</td><td>${FAC[x.facility]?`<span class="pill ${FAC[x.facility].c}">${esc(x.facility)}</span>`:esc(pLoc(x))}</td><td>${esc(x.notes||"")}</td></tr>`).join("");
 }
 function renderCal(){
   const y=cur.getFullYear(), m=cur.getMonth();
@@ -469,13 +616,13 @@ function renderCal(){
     const key=y+"-"+pad(m+1)+"-"+pad(d), all=(byDay[key]||[]).slice().sort(sortGames);
     const used=Object.keys(FAC).filter(k=>all.some(g=>g.facility===k&&!g.cancelled)&&(fac==="all"||fac===k));
     const shown=all.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team));
-    h+=`<div class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canEdit?`<button class="add" data-add="${key}" aria-label="Add game on ${MN[m]} ${d}">+</button>`:""}</div>`+
+    h+=`<div data-day="${key}" class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canEdit?`<button class="add" data-add="${key}" aria-label="Add game on ${MN[m]} ${d}">+</button>`:""}</div>`+
       `<div class="fac">${used.map(k=>`<span class="flag ${FAC[k].c}">${FAC[k].l}</span>`).join("")}</div>`+
       shown.map(g=>`<button class="ev${g.tent?" tent":""}${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}">${g.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}${canSeeRefs&&needsRefs(g)?" · "+refLabel(g):""}</span></button>`).join("")+
       `</div>`;
   }
   const tail=(7-((start+days)%7))%7; for(let i=0;i<tail;i++)h+=`<div class="day out"></div>`;
-  $("grid").innerHTML=h;
+  $("grid").innerHTML=h; mobileDays();
 }
 function renderList(){
   const fac=$("fFac").value, team=$("fTeam").value;
@@ -488,9 +635,9 @@ function renderList(){
 }
 
 // ---- sheets ----
-const SHEETS=["wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet"];
+const SHEETS=["pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
-function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; }
+function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; editingP=null; }
 function openSheet(g,date){
   editingId=g?g.id:null; showSheet("sheet"); $("ferr").textContent="";
   if(canEdit){
@@ -542,6 +689,10 @@ $("ref-close").addEventListener("click",closeSheet);
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("scrim").hidden)closeSheet(); });
 
 // ---- events ----
+$("moreBtn").onclick=()=>{ const t=document.querySelector(".tools"); const o=t.classList.toggle("open"); $("moreBtn").setAttribute("aria-expanded",o); $("moreBtn").textContent=o?"AD tools ▴":"AD tools ▾"; };
+$("m-games").onclick=()=>{mode="games";savePref();render();};
+$("m-prac").onclick=()=>{mode="practices";savePref();render();};
+$("pGames").onchange=()=>{savePref();render();};
 $("v-cal").onclick=()=>{view="cal";savePref();render();};
 $("v-list").onclick=()=>{view="list";savePref();render();};
 $("fFac").onchange=()=>{savePref();render();};
@@ -550,11 +701,32 @@ $("prev").onclick=()=>{cur.setMonth(cur.getMonth()-1);watchMonth();render();};
 $("next").onclick=()=>{cur.setMonth(cur.getMonth()+1);watchMonth();render();};
 $("todayBtn").onclick=()=>{cur=new Date();cur.setDate(1);watchMonth();render();};
 $("addBtn").onclick=()=>openSheet(null);
-$("grid").addEventListener("click",e=>{
+function gridClick(e){
+  if(isMobile()&&e.currentTarget.id==="grid"){ const dd=e.target.closest(".day[data-day]"); if(dd){ selDay=dd.dataset.day; mobileDays(); return; } }
   const a=e.target.closest("[data-add]"); if(a){openSheet(null,a.dataset.add);return;}
+  const pa=e.target.closest("[data-padd]"); if(pa){openPractice(null,pa.dataset.padd);return;}
+  const pb=e.target.closest("[data-pid]"); if(pb){const x=practices.find(y=>y.id===pb.dataset.pid); if(x)openPractice(x); return;}
   const b=e.target.closest(".ev"); if(b){const g=games.find(x=>x.id===b.dataset.id); if(g)openSheet(g);}
-});
-$("rows").addEventListener("click",e=>{ const tr=e.target.closest("tr[data-id]"); if(!tr)return; const g=games.find(x=>x.id===tr.dataset.id); if(g)openSheet(g); });
+}
+$("grid").addEventListener("click",gridClick);
+$("dayList").addEventListener("click",gridClick);
+const mq=window.matchMedia("(max-width:700px)"); const isMobile=()=>mq.matches;
+if(mq.addEventListener)mq.addEventListener("change",()=>render());
+let selDay=null;
+function mobileDays(){
+  const dl=$("dayList"); if(!isMobile()||view!=="cal"){ dl.innerHTML=""; return; }
+  const cells=[...document.querySelectorAll("#grid .day[data-day]")]; if(!cells.length){ dl.innerHTML=""; return; }
+  if(!selDay||!cells.some(c=>c.dataset.day===selDay)){ const t=cells.find(c=>c.dataset.day===todayIso); selDay=t?todayIso:(cells.find(c=>c.querySelector(".ev"))||cells[0]).dataset.day; }
+  let pick=null;
+  cells.forEach(c=>{ const n=c.querySelectorAll(".ev").length; const nb=c.querySelector(".n"); const old=nb.querySelector(".cnt"); if(old)old.remove();
+    if(n)nb.insertAdjacentHTML("beforeend",`<span class="cnt" aria-label="${n} on this day">${n}</span>`);
+    c.classList.toggle("sel",c.dataset.day===selDay); if(c.dataset.day===selDay)pick=c; });
+  const evs=[...pick.querySelectorAll(".fac .flag, .ev")].map(x=>x.outerHTML).join("");
+  const add=pick.querySelector("[data-add],[data-padd]");
+  const addBtn=add?(add.dataset.add?`<button class="btn" data-add="${add.dataset.add}">+ Add game this day</button>`:`<button class="btn" data-padd="${add.dataset.padd}">+ Add practice this day</button>`):"";
+  dl.innerHTML=`<h3>${esc(fmtDate(selDay))}</h3>`+(evs?`<div class="dl-items">${evs}</div>`:`<p class="small muted">${mode==="practices"?"No practices":"No games"} this day.</p>`)+addBtn;
+}
+$("rows").addEventListener("click",e=>{ const pt=e.target.closest("tr[data-pid]"); if(pt){ const x=practices.find(y=>y.id===pt.dataset.pid); if(x)openPractice(x); return; } const tr=e.target.closest("tr[data-id]"); if(!tr)return; const g=games.find(x=>x.id===tr.dataset.id); if(g)openSheet(g); });
 render();
 
 // ---- data (Firebase) ----
@@ -644,7 +816,7 @@ function watchMonth(){
   if(!fdb)return;
   if(unsubMonth)unsubMonth();
   const [a,b]=monthRange(cur); loaded=false;
-  watchRefs(); watchSignups();
+  watchRefs(); watchSignups(); watchPractices();
   unsubMonth=gamesCol().where("date",">=",a).where("date","<",b).onSnapshot(snap=>{
     games=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
     loaded=true; fillTeams(); status(""); render();
@@ -667,13 +839,19 @@ function setEditor(user){
   $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email):"Not signed in";
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in";
   $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
+  $("coachBtn").hidden=!canEdit; $("moreBtn").hidden=!canEdit;
+  coachTeams=[]; loadCoach(user);
   checkSetup(); fixNames(); render();
+}
+async function loadCoach(user){
+  if(!user||!user.email||canEdit||!fdb)return;
+  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ coachTeams=(d.data().teams||[]).slice(); $("who").textContent="Coach: "+user.email; render(); } }catch(_){}
 }
 if(!window.firebase){
   $("who").textContent="Not connected"; status("This schedule couldn't reach its database. Check the internet connection and reload.");
 } else {
   firebase.initializeApp(firebaseConfig);
-  fdb=firebase.firestore(); fauth=firebase.auth();
+  fdb=firebase.firestore(); fauth=firebase.auth(); setTimeout(loadPracCfg,0);
   try{ fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
   metaDoc().onSnapshot(d=>{ metaExists=d.exists; teamList=(d.exists&&d.data().list)||[]; fillTeams(); checkSetup(); },()=>{ metaExists=false; });
   histDoc().onSnapshot(d=>{ history=(d.exists&&d.data().items)||[]; undoArmed=false; renderUndo(); },()=>{});
@@ -735,6 +913,138 @@ $("form").addEventListener("submit",async e=>{
   }catch(err){ $("ferr").textContent=denied(err)?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
   $("saveBtn").disabled=false;
 });
+
+// ---- practices ----
+function pracCol(){ return fdb.collection("practices"); }
+function watchPractices(){
+  if(unsubPrac){unsubPrac();unsubPrac=null;} if(!fdb)return;
+  const [a,b]=monthRange(cur);
+  unsubPrac=pracCol().where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ practices=sn.docs.map(d=>Object.assign({id:d.id},d.data())); if(mode==="practices")render(); },()=>{});
+}
+async function loadPracCfg(){ try{ const d=await fdb.collection("meta").doc("practiceCfg").get(); if(d.exists&&d.data().gameHours)gameHours=+d.data().gameHours; }catch(_){} }
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+$("p-days").innerHTML=DAYS.map((d,i)=>`<label class="chk"><input type="checkbox" data-dow="${i}"> ${d}</label>`).join("");
+$("p-rep").onchange=()=>{ $("p-repBox").hidden=!$("p-rep").checked; };
+$("p-fac").onchange=()=>{ $("p-otherWrap").hidden=$("p-fac").value!=="Other"; };
+$("pClose").onclick=closeSheet;
+$("addPBtn").onclick=()=>openPractice(null);
+function openPractice(x,date){
+  editingP=x?x.id:null; pWasCancelled=!!(x&&x.cancelled); showSheet("pSheet"); $("perr").textContent="";
+  const can=x?myTeam(x.team):canPractice();
+  if(can){
+    $("pForm").hidden=false; $("pRo").hidden=true; $("pTitle").textContent=x?"Edit practice":"Add practice";
+    const teams=canEdit?[...new Set(teamList.concat(games.map(g=>g.team)))].filter(t=>t&&t!=="Music").sort():coachTeams.slice().sort();
+    $("p-team").innerHTML=teams.map(t=>`<option${x&&x.team===t?" selected":""}>${esc(t)}</option>`).join("");
+    $("p-team").disabled=!!x&&!canEdit;
+    $("p-date").value=x?x.date:(date||todayIso); $("p-start").value=x?x.start:""; $("p-end").value=x?x.end:"";
+    $("p-fac").value=x?(x.facility||"HS gym"):"HS gym"; $("p-other").value=x?x.other||"":""; $("p-otherWrap").hidden=$("p-fac").value!=="Other";
+    $("p-notes").value=x?x.notes||"":""; $("p-cancel").checked=!!(x&&x.cancelled); $("p-cancelWrap").hidden=!x;
+    $("p-repWrap").hidden=!!x; $("p-rep").checked=false; $("p-repBox").hidden=true; $("p-until").value="";
+    document.querySelectorAll("#p-days input").forEach(c=>c.checked=false);
+    $("pDel").hidden=!x;
+  } else {
+    $("pForm").hidden=true; $("pRo").hidden=false; $("pTitle").textContent=x.team+" practice";
+    $("pRo").innerHTML=`${x.cancelled?'<p style="margin:0 0 6px"><span class="cx" style="font-size:13px">CANCELLED</span> This practice will not happen.</p>':""}<dl class="ro"><dt>Date</dt><dd>${fmtDate(x.date)}</dd><dt>Time</dt><dd>${esc(fmt12(x.start))} – ${esc(fmt12(x.end))}</dd><dt>Location</dt><dd>${esc(pLoc(x))}</dd>${x.notes?`<dt>Notes</dt><dd>${esc(x.notes)}</dd>`:""}</dl><div class="row" style="margin-top:16px"><button class="btn" id="pRoClose">Close</button></div>`;
+    $("pRoClose").onclick=closeSheet;
+  }
+}
+async function findConflicts(entries){
+  const list=entries.filter(e=>FAC[e.facility]); if(!list.length)return [];
+  const ds=list.map(e=>e.date).sort();
+  const sn=await gamesCol().where("date",">=",ds[0]).where("date","<=",ds[ds.length-1]).get();
+  const gs=sn.docs.map(d=>d.data()).filter(g=>g.ha==="H"&&!g.cancelled&&g.facility);
+  const out=[];
+  list.forEach(e=>{ const ps=tmin(e.start), pe=tmin(e.end);
+    gs.filter(g=>g.date===e.date&&g.facility===e.facility).forEach(g=>{ const gm=mins(g.time);
+      const hit=gm===9999?true:(ps<gm+gameHours*60&&gm<pe); if(hit)out.push(g); }); });
+  return out;
+}
+$("pForm").addEventListener("submit",async e=>{
+  e.preventDefault(); $("perr").textContent="";
+  const base={team:$("p-team").value,start:$("p-start").value,end:$("p-end").value,facility:$("p-fac").value,other:$("p-fac").value==="Other"?$("p-other").value.trim():"",notes:$("p-notes").value.trim(),cancelled:$("p-cancel").checked};
+  const d0=$("p-date").value;
+  if(!base.team||!d0||!base.start||!base.end){ $("perr").textContent="Team, date, start, and end are required."; return; }
+  if(tmin(base.end)<=tmin(base.start)){ $("perr").textContent="End time has to be after the start time."; return; }
+  if(base.facility==="Other"&&!base.other){ $("perr").textContent="Type the other location."; return; }
+  let dates=[d0];
+  if(!editingP&&$("p-rep").checked){
+    const dows=[...document.querySelectorAll("#p-days input:checked")].map(c=>+c.dataset.dow), until=$("p-until").value;
+    if(!dows.length||!until||until<d0){ $("perr").textContent="For repeating practices, pick the days and an Until date after the start date."; return; }
+    dates=[]; const d=new Date(d0+"T12:00:00"), u=new Date(until+"T12:00:00");
+    while(d<=u&&dates.length<200){ if(dows.includes(d.getDay()))dates.push(iso(d)); d.setDate(d.getDate()+1); }
+    if(!dates.length){ $("perr").textContent="None of those days fall between the start and Until dates."; return; }
+  }
+  $("pSave").disabled=true;
+  try{
+    const entries=dates.map(dt=>Object.assign({date:dt},base));
+    const conf=base.cancelled?[]:await findConflicts(entries);
+    if(conf.length){ $("perr").innerHTML="Not saved. These home games use "+esc(base.facility)+" at that time:<br>"+conf.slice(0,8).map(g=>esc(fmtDate(g.date)+" "+(g.time||"TBA")+" "+g.team+" vs "+g.opp)).join("<br>")+(conf.length>8?"<br>…and "+(conf.length-8)+" more":""); $("pSave").disabled=false; return; }
+    const by=(fauth.currentUser&&fauth.currentUser.email)||"";
+    if(editingP){
+      const ref=pracCol().doc(editingP); const old=practices.find(y=>y.id===editingP)||{};
+      const doc=Object.assign({},old,entries[0],{updatedBy:by,updatedAt:Date.now()}); delete doc.id;
+      const b=fdb.batch(); b.set(ref,doc);
+      const newlyCancelled=!pWasCancelled&&base.cancelled;
+      if(newlyCancelled)b.set(fdb.collection("practiceLog").doc(),{action:"cancelled",practiceId:editingP,team:doc.team,date:doc.date,start:doc.start,end:doc.end,location:pLoc(doc),by,at:Date.now()});
+      await b.commit();
+      if(newlyCancelled&&!canEdit)notifyAD(doc,by);
+      toast(newlyCancelled?"Practice cancelled. The AD office was notified.":"Practice saved");
+    } else {
+      const series=dates.length>1?pracCol().doc().id:"";
+      for(let i=0;i<entries.length;i+=400){ const b=fdb.batch(); entries.slice(i,i+400).forEach(en=>b.set(pracCol().doc(),Object.assign({},en,{cancelled:false,series,createdBy:by,createdAt:Date.now()}))); await b.commit(); }
+      toast(entries.length>1?"Added "+entries.length+" practices":"Practice added");
+    }
+    closeSheet();
+  }catch(err){ $("perr").textContent=denied(err)?"You can only add or change practices for your own team.":"Couldn't save. Check your connection and try again."; }
+  $("pSave").disabled=false;
+});
+let pDelArmed=false;
+$("pDel").onclick=async()=>{
+  if(!editingP)return;
+  if(!pDelArmed){ pDelArmed=true; $("pDel").textContent="Click again to delete"; setTimeout(()=>{pDelArmed=false;$("pDel").textContent="Delete";},2500); return; }
+  pDelArmed=false; $("pDel").textContent="Delete";
+  try{ await pracCol().doc(editingP).delete(); toast("Practice deleted"); closeSheet(); }catch(e){ $("perr").textContent=denied(e)?"You can only delete your own team's practices.":"Couldn't delete. Check your connection."; }
+};
+async function notifyAD(x,by){
+  try{
+    const d=await fdb.collection("meta").doc("notify").get(); const url=d.exists&&d.data().url; if(!url)return;
+    const token=await fauth.currentUser.getIdToken();
+    await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({idToken:token,action:"notify",
+      subject:"Practice cancelled: "+x.team+" "+fmtDate(x.date),
+      body:"A practice was cancelled on the athletics schedule.\n\nTeam: "+x.team+"\nDate: "+fmtDate(x.date)+"\nTime: "+fmt12(x.start)+" - "+fmt12(x.end)+"\nLocation: "+pLoc(x)+(x.notes?"\nNotes: "+x.notes:"")+"\nCancelled by: "+by})});
+  }catch(_){}
+}
+// ---- coaches (AD) ----
+const coachCol=()=>fdb.collection("coaches");
+let coachesList=[];
+function cTab(w){ ["list","log","set"].forEach(x=>{ $("ct2-"+x).setAttribute("aria-pressed",x===w); $("cp2-"+x).hidden=x!==w; }); if(w==="list")loadCoaches(); if(w==="log")loadLog(); if(w==="set")$("s-hours").value=gameHours; }
+$("ct2-list").onclick=()=>cTab("list"); $("ct2-log").onclick=()=>cTab("log"); $("ct2-set").onclick=()=>cTab("set");
+$("c-close").onclick=closeSheet;
+$("coachBtn").onclick=()=>{ $("cerr2").textContent=""; showSheet("cSheet"); drawCoachTeams([]); cTab("list"); };
+function allTeams(){ return [...new Set(teamList.concat(games.map(g=>g.team)))].filter(t=>t&&t!=="Music").sort(); }
+function drawCoachTeams(sel){ $("c-teams").innerHTML=allTeams().map(t=>`<label class="chk"><input type="checkbox" value="${esc(t)}"${sel.includes(t)?" checked":""}> ${esc(t)}</label>`).join(""); }
+async function loadCoaches(){
+  try{ const sn=await coachCol().get(); coachesList=sn.docs.map(d=>Object.assign({email:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(b.name));
+    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.6fr) auto auto"><span><b>${esc(c.name||"")}</b></span><span>${esc(c.email)}</span><span class="small">${esc((c.teams||[]).join(", "))}</span><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
+  }catch(_){ $("coachList").innerHTML='<p class="err">Couldn\'t load coaches.</p>'; }
+}
+$("coachList").addEventListener("click",async e=>{
+  const ed=e.target.closest("[data-cedit]"); if(ed){ const c=coachesList.find(x=>x.email===ed.dataset.cedit); $("c-name").value=c.name||""; $("c-email").value=c.email; drawCoachTeams(c.teams||[]); return; }
+  const dl=e.target.closest("[data-cdel]"); if(dl){ if(!confirm("Remove "+dl.dataset.cdel+"? They will no longer be able to edit practices."))return; try{ await coachCol().doc(dl.dataset.cdel).delete(); toast("Removed"); loadCoaches(); }catch(_){ toast("Couldn't remove."); } }
+});
+$("c-add").onclick=async()=>{
+  const email=$("c-email").value.trim().toLowerCase(), name=$("c-name").value.trim(), teams=[...document.querySelectorAll("#c-teams input:checked")].map(c=>c.value);
+  $("cerr2").textContent="";
+  if(!/^[^@\s]+@[^@\s]+$/.test(email)){ $("cerr2").textContent="Type the coach's school email."; return; }
+  if(!teams.length){ $("cerr2").textContent="Pick at least one team."; return; }
+  try{ await coachCol().doc(email).set({name,teams}); toast("Coach saved"); $("c-name").value=$("c-email").value=""; drawCoachTeams([]); loadCoaches(); }catch(_){ $("cerr2").textContent="Couldn't save. Check your connection."; }
+};
+async function loadLog(){
+  try{ const sn=await fdb.collection("practiceLog").orderBy("at","desc").limit(100).get();
+    $("logList").innerHTML=sn.empty?'<p class="small muted">No cancellations yet.</p>':'<div class="list"><table><thead><tr><th>Cancelled on</th><th>Practice</th><th>Team</th><th>By</th></tr></thead><tbody>'+sn.docs.map(d=>{ const x=d.data(), at=new Date(x.at); return `<tr><td class="d">${(at.getMonth()+1)+"/"+at.getDate()+"/"+String(at.getFullYear()).slice(2)} ${at.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})}</td><td class="d">${esc(fmtDate(x.date))} ${esc(fmt12(x.start))}–${esc(fmt12(x.end))} · ${esc(x.location||"")}</td><td>${esc(x.team)}</td><td>${esc(x.by)}</td></tr>`; }).join("")+'</tbody></table></div>';
+  }catch(_){ $("logList").innerHTML='<p class="err">Couldn\'t load the log.</p>'; }
+}
+$("s-save").onclick=async()=>{ const h=+$("s-hours").value; if(!(h>=1&&h<=6)){ toast("Pick 1 to 6 hours."); return; } try{ await fdb.collection("meta").doc("practiceCfg").set({gameHours:h}); gameHours=h; toast("Saved"); }catch(_){ toast("Couldn't save."); } };
 
 // ---- sign up to work ----
 let wkGames=[], wkSu={};
@@ -823,7 +1133,7 @@ async function loadCfg(quiet){ try{ const d=await cfgDoc().get(); mailCfg=(d.exi
   $("e-subj").value=mailCfg.subject||DEF_SUBJ; $("e-body").value=mailCfg.body||DEF_BODY; $("e-url").value=mailCfg.url||""; }
 $("e-save").onclick=async()=>{ $("eerr").textContent=""; const url=$("e-url").value.trim();
   if(url&&!/^https:\/\/script\.google\.com\//.test(url)){ $("eerr").textContent="That link should start with https://script.google.com/"; return; }
-  try{ mailCfg={subject:$("e-subj").value,body:$("e-body").value,url}; await cfgDoc().set(mailCfg); toast("Email setup saved"); }catch(_){ $("eerr").textContent="Couldn't save. Check your connection."; } };
+  try{ mailCfg={subject:$("e-subj").value,body:$("e-body").value,url}; await cfgDoc().set(mailCfg); await fdb.collection("meta").doc("notify").set({url}); toast("Email setup saved"); }catch(_){ $("eerr").textContent="Couldn't save. Check your connection."; } };
 function weekLabel(mon){ const a=new Date(mon+"T12:00:00"), b=new Date(a); b.setDate(b.getDate()+6); return (a.getMonth()+1)+"/"+a.getDate()+" – "+(b.getMonth()+1)+"/"+b.getDate(); }
 const gameLine=g=>fmtDate(g.date)+" · "+(g.time||"TBA")+" · "+g.team+" · "+(g.ha==="A"?"Away (at "+g.opp+")":"Home (at Sandoval)");
 const fill=(t,sc,wk,gl)=>String(t).replace(/\{school\}/g,sc).replace(/\{week\}/g,wk).replace(/\{games\}/g,gl);
@@ -908,7 +1218,7 @@ $("x-go").onclick=async()=>{
     const snap=type==="ics"?await gamesCol().where("team","==",team).get():await gamesCol().where("date",">=",from).where("date","<=",to).get();
     let list=snap.docs.map(d=>Object.assign({id:d.id},d.data())).filter(g=>!team||g.team===team);
     if(type==="travel")list=list.filter(g=>g.ha==="A");
-    if(type==="ics"){ list.sort(sortGames); downloadIcs(list,team); closeSheet(); $("x-go").disabled=false; return; }
+    if(type==="ics"){ list.sort(sortGames); const ps=await pracCol().where("team","==",team).get(); const pl=ps.docs.map(d=>Object.assign({id:d.id},d.data())).sort(sortP); downloadIcs(list,team,pl); closeSheet(); $("x-go").disabled=false; return; }
     list.sort(sortGames);
     const withOff=canSeeRefs&&type==="full"&&$("x-off").checked; let XA={};
     if(withOff){ const as=await asgCol().where("date",">=",from).where("date","<=",to).get(); as.docs.forEach(d=>XA[d.id]=d.data()); }
@@ -939,11 +1249,11 @@ $("x-go").onclick=async()=>{
 function syncExport(){ const ics=$("x-type").value==="ics"; $("x-dates").hidden=ics;
   const allOpt=$("x-team").querySelector('option[value=""]'); if(allOpt){ allOpt.textContent=ics?"Pick a team":"All teams"; }
   $("x-go").textContent=ics?"Download calendar file":"Create PDF";
-  $("x-note").innerHTML=ics?"Downloads a .ics file. Open it, or import it into Google Calendar (Settings, then Import), Outlook, or the iPhone Calendar app. It has every game on that team's schedule. Games with a time are 2 hours long; TBA games are all-day.":"Your browser's print window opens. Choose <b>Save as PDF</b> as the destination."; }
+  $("x-note").innerHTML=ics?"Downloads a .ics file. Open it, or import it into Google Calendar (Settings, then Import), Outlook, or the iPhone Calendar app. It has every game and practice on that team's schedule. Games with a time are 2 hours long; TBA games are all-day.":"Your browser's print window opens. Choose <b>Save as PDF</b> as the destination."; }
 $("x-type").addEventListener("change",syncExport);
 function icsEsc(t){ return String(t||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n"); }
 function icsFold(line){ let out="", l=line; while(l.length>74){ out+=l.slice(0,74)+"\r\n "; l=l.slice(74); } return out+l; }
-function downloadIcs(list,team){
+function downloadIcs(list,team,pracs){ pracs=pracs||[];
   const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
   const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Sandoval CUSD 501//Athletics Schedule//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:Sandoval "+team,"X-WR-TIMEZONE:America/Chicago",
     "BEGIN:VTIMEZONE","TZID:America/Chicago","BEGIN:DAYLIGHT","TZOFFSETFROM:-0600","TZOFFSETTO:-0500","TZNAME:CDT","DTSTART:19700308T020000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU","END:DAYLIGHT","BEGIN:STANDARD","TZOFFSETFROM:-0500","TZOFFSETTO:-0600","TZNAME:CST","DTSTART:19701101T020000","RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU","END:STANDARD","END:VTIMEZONE"];
@@ -960,12 +1270,22 @@ function downloadIcs(list,team){
     if(g.cancelled)L.push("STATUS:CANCELLED");
     L.push("END:VEVENT");
   });
+  pracs.forEach(x=>{
+    const d=x.date.replace(/-/g,""), s0=String(x.start||"").replace(":",""), e0=String(x.end||"").replace(":","");
+    L.push("BEGIN:VEVENT","UID:p-"+x.id+"@sandoval-athletics","DTSTAMP:"+stamp,
+      "DTSTART;TZID=America/Chicago:"+d+"T"+s0+"00","DTEND;TZID=America/Chicago:"+d+"T"+e0+"00");
+    L.push(icsFold("SUMMARY:"+icsEsc((x.cancelled?"CANCELLED: ":"")+x.team+" practice")));
+    L.push(icsFold("LOCATION:"+icsEsc(FAC[x.facility]?"Sandoval "+x.facility:pLoc(x))));
+    if(x.notes)L.push(icsFold("DESCRIPTION:"+icsEsc(x.notes)));
+    if(x.cancelled)L.push("STATUS:CANCELLED");
+    L.push("END:VEVENT");
+  });
   L.push("END:VCALENDAR");
   const blob=new Blob([L.join("\r\n")+"\r\n"],{type:"text/calendar"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download="sandoval-"+team.toLowerCase().replace(/[^a-z0-9]+/g,"-")+".ics";
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  toast(list.length+" games saved to a calendar file");
+  toast(list.length+" games"+(pracs.length?" and "+pracs.length+" practices":"")+" saved to a calendar file");
 }
 
 // ---- import CSV ----
