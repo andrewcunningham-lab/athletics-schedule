@@ -478,6 +478,7 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
       <div class="two"><label><span class="lbl">Name</span><input type="text" id="c-name"></label><label><span class="lbl">School email</span><input type="text" id="c-email"></label></div>
       <label><span class="lbl">Role</span><select id="c-role"><option value="coach">Head coach (practices for their teams)</option><option value="events">Events only (e.g. GS Secretary)</option></select></label>
       <div id="c-teamsWrap"><span class="lbl">Teams</span><div id="c-teams" class="row" style="flex-wrap:wrap;gap:8px 14px;margin-top:4px"></div></div>
+      <label class="chk" id="c-gamesWrap"><input type="checkbox" id="c-games"> Can also add and edit games for these teams</label>
       <div class="row"><button class="btn primary" id="c-add">Save</button></div>
       <p class="err" id="cerr2"></p>
     </div>
@@ -575,7 +576,8 @@ function defaultPos(g){ const t=g.team||""; if(/music/i.test(t))return []; if(/b
 const posFor=g=>Array.isArray(g.pos)?g.pos:defaultPos(g);
 const hasWork=g=>g.ha==="H"&&!g.cancelled&&g.team!=="Music";
 const LOGO=document.querySelector(".brand img").src;
-let events=[], unsubEv=null, canEvents=false, editingE=null;
+let events=[], unsubEv=null, canEvents=false, editingE=null, gameTeams=[];
+const canGameFor=t=>canEdit||gameTeams.includes(t);
 let practices=[], mode="games", coachTeams=[], gameHours=2, unsubPrac=null, editingP=null, pWasCancelled=false;
 let games=[], teamList=[], canEdit=false, view="cal", editingId=null, loaded=false, metaExists=null;
 let cur=new Date(); cur.setDate(1);
@@ -610,7 +612,7 @@ const sortP=(a,b)=>a.date<b.date?-1:a.date>b.date?1:tmin(a.start)-tmin(b.start)|
 function render(){
   const P=mode==="practices";
   $("m-games").setAttribute("aria-pressed",!P); $("m-prac").setAttribute("aria-pressed",P);
-  $("pGamesWrap").hidden=!(P&&canPractice()); $("addBtn").hidden=!(canEdit&&!P); $("addPBtn").hidden=!(P&&canPractice()); $("addEBtn").hidden=!(P&&(canEdit||canEvents));
+  $("pGamesWrap").hidden=!(P&&canPractice()); $("addBtn").hidden=!((canEdit||gameTeams.length)&&!P); $("addPBtn").hidden=!(P&&canPractice()); $("addEBtn").hidden=!(P&&(canEdit||canEvents));
   $("fFac").options[0].textContent=P?"All locations":"All games";
   $("v-cal").setAttribute("aria-pressed",view==="cal"); $("v-list").setAttribute("aria-pressed",view==="list");
   $("calView").hidden=view!=="cal"; $("listView").hidden=view!=="list"; $("calKey").hidden=view!=="cal";
@@ -663,7 +665,7 @@ function renderCal(){
     const key=y+"-"+pad(m+1)+"-"+pad(d), all=(byDay[key]||[]).slice().sort(sortGames);
     const used=Object.keys(FAC).filter(k=>all.some(g=>g.facility===k&&!g.cancelled)&&(fac==="all"||fac===k));
     const shown=all.filter(g=>(fac==="all"||g.facility===fac)&&(!team||g.team===team));
-    h+=`<div data-day="${key}" class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${canEdit?`<button class="add" data-add="${key}" aria-label="Add game on ${MN[m]} ${d}">+</button>`:""}</div>`+
+    h+=`<div data-day="${key}" class="day${key===todayIso?" today":""}"><div class="n"><b>${d}</b>${(canEdit||gameTeams.length)?`<button class="add" data-add="${key}" aria-label="Add game on ${MN[m]} ${d}">+</button>`:""}</div>`+
       `<div class="fac">${used.map(k=>`<span class="flag ${FAC[k].c}">${FAC[k].l}</span>`).join("")}</div>`+
       shown.map(g=>`<button class="ev${g.tent?" tent":""}${g.cancelled?" cancel":""}" data-id="${esc(g.id)}" style="--c:${colorFor(g)}">${g.cancelled?'<span class="cx">CANCELLED</span>':""}<span class="who"><b>${esc(g.team)}</b> ${esc(vs(g))}</span><span class="t">${esc(g.time||"TBA")}${g.ha==="A"&&g.depart?" · bus "+esc(g.depart):""}${g.tent?" · may change":""}${canSeeRefs&&needsRefs(g)?" · "+refLabel(g):""}</span></button>`).join("")+
       `</div>`;
@@ -687,12 +689,13 @@ function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; editingP=null; }
 function openSheet(g,date){
   editingId=g?g.id:null; showSheet("sheet"); $("ferr").textContent="";
-  if(canEdit){
+  if(canEdit||(gameTeams.length&&(!g||canGameFor(g.team)))){
     $("form").hidden=false; $("ro").hidden=true;
     $("sheetTitle").textContent=g?"Edit game":"Add game";
     $("g-date").value=g?g.date:(date||todayIso); $("g-time").value=g?g.time||"":"";
     $("g-team").value=g?g.team:""; $("g-ha").value=g?g.ha:"H"; $("g-fac").value=g?g.facility||"":"";
     $("g-opp").value=g?g.opp:""; $("g-depart").value=g?g.depart||"":""; $("g-tent").checked=!!(g&&g.tent); $("g-cancel").checked=!!(g&&g.cancelled);
+    if(!canEdit){ if(!g)$("g-team").value=gameTeams[0]||""; $("g-team").readOnly=gameTeams.length===1; } else $("g-team").readOnly=false;
     $("delBtn").hidden=!g; syncDepart(); drawSlots(g); drawWork(g); $("g-date").focus();
   } else {
     $("form").hidden=true; $("ro").hidden=false; $("sheetTitle").textContent=g.team; roGame=g;
@@ -905,12 +908,12 @@ function setEditor(user){
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in";
   $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
   $("coachBtn").hidden=!canEdit; $("moreBtn").hidden=!canEdit;
-  coachTeams=[]; canEvents=false; loadCoach(user);
+  coachTeams=[]; gameTeams=[]; canEvents=false; loadCoach(user);
   checkSetup(); fixNames(); render();
 }
 async function loadCoach(user){
   if(!user||!user.email||canEdit||!fdb)return;
-  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ const x=d.data(); if(x.role==="events"){ canEvents=true; $("who").textContent="Events: "+user.email; if(mode!=="practices"){ mode="practices"; } } else { coachTeams=(x.teams||[]).slice(); $("who").textContent="Coach: "+user.email; } render(); } }catch(_){}
+  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ const x=d.data(); if(x.role==="events"){ canEvents=true; $("who").textContent="Events: "+user.email; if(mode!=="practices"){ mode="practices"; } } else { coachTeams=(x.teams||[]).slice(); if(x.games)gameTeams=coachTeams.slice(); $("who").textContent="Coach: "+user.email; } render(); } }catch(_){}
 }
 if(!window.firebase){
   $("who").textContent="Not connected"; status("This schedule couldn't reach its database. Check the internet connection and reload.");
@@ -942,6 +945,7 @@ $("delBtn").addEventListener("click",async()=>{
   if(!editingId)return;
   if(!delArmed){ delArmed=true; $("delBtn").textContent="Click again to delete"; setTimeout(()=>{delArmed=false;$("delBtn").textContent="Delete";},2500); return; }
   delArmed=false; $("delBtn").textContent="Delete";
+  if(!canEdit){ try{ await gamesCol().doc(editingId).delete(); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent=denied(e)?"You can only delete your own team's games.":"Couldn't delete. Check your connection and try again."; } return; }
   try{ const old=games.find(x=>x.id===editingId); const oa=asg[editingId]?JSON.parse(JSON.stringify(asg[editingId])):null; await gamesCol().doc(editingId).delete(); if(oa)await asgCol().doc(editingId).delete(); const os=su[editingId]||{}; const sb=Object.keys(os).map(k=>({col:"signups",id:editingId+"_"+k,d:JSON.parse(JSON.stringify(os[k]))})); if(sb.length){ const bt=fdb.batch(); sb.forEach(x=>bt.delete(suCol().doc(x.id))); await bt.commit(); } if(old)await record("delete "+old.team+" "+vs(old)+" "+fmtDate(old.date),[{id:editingId,d:clean(old)}].concat(oa?[{col:"refAssign",id:editingId,d:oa}]:[],sb)); toast("Game deleted"); closeSheet(); }catch(e){ $("ferr").textContent="Couldn't delete. Check your connection and try again."; }
 });
 $("form").addEventListener("submit",async e=>{
@@ -949,13 +953,15 @@ $("form").addEventListener("submit",async e=>{
   const g={date:$("g-date").value,time:$("g-time").value.trim(),team:$("g-team").value.trim(),ha:$("g-ha").value,
     facility:$("g-fac").value,opp:$("g-opp").value.trim(),depart:$("g-ha").value==="A"?$("g-depart").value.trim():"",tent:$("g-tent").checked,cancelled:$("g-cancel").checked};
   if(!g.date||!g.team||!g.opp){ $("ferr").textContent="Date, team, and opponent are required."; return; }
+  if(!canEdit&&!canGameFor(g.team)){ $("ferr").textContent="You can only add games for "+gameTeams.join(" or ")+"."; return; }
   { const oldG=editingId?games.find(x=>x.id===editingId):null; const pos=SIGNABLE.filter(k=>$("wn-"+k)&&$("wn-"+k).checked); const def=defaultPos(g);
     if(g.ha==="H"&&(pos.length!==def.length||pos.some(k=>!def.includes(k))))g.pos=pos; else if(g.ha!=="H"&&oldG&&Array.isArray(oldG.pos))g.pos=oldG.pos; }
   $("saveBtn").disabled=true;
   try{
     const ref=editingId?gamesCol().doc(editingId):gamesCol().doc();
     const old=editingId?games.find(x=>x.id===editingId):null;
-    await ref.set(g); await addTeams([g.team]);
+    if(!canEdit&&old){ ["pos"].forEach(k=>{ if(old[k]!==undefined&&g[k]===undefined)g[k]=old[k]; }); }
+    await ref.set(g); if(canEdit)await addTeams([g.team]);
     let asgBefore=null;
     if(canEdit){
       const n=/^HS\b.*basketball/i.test(g.team)?3:2;
@@ -974,7 +980,7 @@ $("form").addEventListener("submit",async e=>{
         if(nm)bt.set(suCol().doc(id),{gameId:ref.id,date:g.date,slot:k,name:nm,uid:ox&&ox.name===nm?ox.uid:""}); else bt.delete(suCol().doc(id)); n++; });
       if(n)await bt.commit();
     }
-    await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}].concat(asgBefore?[asgBefore]:[],suBefore)); toast(editingId?"Game saved":"Game added"); closeSheet();
+    if(canEdit)await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}].concat(asgBefore?[asgBefore]:[],suBefore)); toast(editingId?"Game saved":"Game added"); closeSheet();
   }catch(err){ $("ferr").textContent=denied(err)?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
   $("saveBtn").disabled=false;
 });
@@ -1137,20 +1143,21 @@ function allTeams(){ return [...new Set(teamList.concat(games.map(g=>g.team)))].
 function drawCoachTeams(sel){ $("c-teams").innerHTML=allTeams().map(t=>`<label class="chk"><input type="checkbox" value="${esc(t)}"${sel.includes(t)?" checked":""}> ${esc(t)}</label>`).join(""); }
 async function loadCoaches(){
   try{ const sn=await coachCol().get(); coachesList=sn.docs.map(d=>Object.assign({email:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(b.name));
-    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow crow"><div class="cwho"><b>${esc(c.name||"")}</b><div class="small muted">${esc(c.email)}</div></div><div class="small cteams">${c.role==="events"?"Events only (GS Secretary)":esc((c.teams||[]).join(", "))}</div><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
+    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow crow"><div class="cwho"><b>${esc(c.name||"")}</b><div class="small muted">${esc(c.email)}</div></div><div class="small cteams">${c.role==="events"?"Events only (GS Secretary)":esc((c.teams||[]).join(", "))+(c.games?" · practices and games":"")}</div><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
   }catch(_){ $("coachList").innerHTML='<p class="err">Couldn\'t load coaches.</p>'; }
 }
 $("coachList").addEventListener("click",async e=>{
-  const ed=e.target.closest("[data-cedit]"); if(ed){ const c=coachesList.find(x=>x.email===ed.dataset.cedit); $("c-name").value=c.name||""; $("c-email").value=c.email; $("c-role").value=c.role==="events"?"events":"coach"; $("c-teamsWrap").hidden=c.role==="events"; drawCoachTeams(c.teams||[]); return; }
+  const ed=e.target.closest("[data-cedit]"); if(ed){ const c=coachesList.find(x=>x.email===ed.dataset.cedit); $("c-name").value=c.name||""; $("c-email").value=c.email; $("c-role").value=c.role==="events"?"events":"coach"; $("c-teamsWrap").hidden=$("c-gamesWrap").hidden=c.role==="events"; $("c-games").checked=!!c.games; drawCoachTeams(c.teams||[]); return; }
   const dl=e.target.closest("[data-cdel]"); if(dl){ if(!confirm("Remove "+dl.dataset.cdel+"? They will no longer be able to edit the schedule."))return; try{ await coachCol().doc(dl.dataset.cdel).delete(); toast("Removed"); loadCoaches(); }catch(_){ toast("Couldn't remove."); } }
 });
-$("c-role").onchange=()=>{ $("c-teamsWrap").hidden=$("c-role").value==="events"; };
+$("c-role").onchange=()=>{ $("c-teamsWrap").hidden=$("c-gamesWrap").hidden=$("c-role").value==="events"; };
 $("c-add").onclick=async()=>{
   const role=$("c-role").value, email=$("c-email").value.trim().toLowerCase(), name=$("c-name").value.trim(), teams=role==="events"?[]:[...document.querySelectorAll("#c-teams input:checked")].map(c=>c.value);
   $("cerr2").textContent="";
   if(!/^[^@\s]+@[^@\s]+$/.test(email)){ $("cerr2").textContent="Type their school email."; return; }
   if(role!=="events"&&!teams.length){ $("cerr2").textContent="Pick at least one team."; return; }
-  try{ await coachCol().doc(email).set({name,teams,role}); toast("Coach saved"); $("c-name").value=$("c-email").value=""; $("c-role").value="coach"; $("c-teamsWrap").hidden=false; drawCoachTeams([]); loadCoaches(); }catch(_){ $("cerr2").textContent="Couldn't save. Check your connection."; }
+  const gamesOk=role!=="events"&&$("c-games").checked;
+  try{ await coachCol().doc(email).set({name,teams,role,games:gamesOk}); toast("Coach saved"); $("c-name").value=$("c-email").value=""; $("c-role").value="coach"; $("c-teamsWrap").hidden=false; $("c-gamesWrap").hidden=false; $("c-games").checked=false; drawCoachTeams([]); loadCoaches(); }catch(_){ $("cerr2").textContent="Couldn't save. Check your connection."; }
 };
 async function loadLog(){
   try{ const sn=await fdb.collection("practiceLog").orderBy("at","desc").limit(100).get();
