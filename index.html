@@ -227,6 +227,20 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
 #print .pt tr{break-inside:avoid}
 #print .pt .pm td{background:#eee!important;font-family:var(--display);font-size:13px;font-weight:600;padding-top:8px}
 #print .pt .nb{color:#c8102e;font-weight:700}
+#print .cm{break-after:page;page-break-after:always}
+#print .cm:last-child{break-after:auto;page-break-after:auto}
+#print .cg{width:100%;border-collapse:collapse;table-layout:fixed}
+#print .cg th{background:#121112!important;color:#fff!important;font-family:var(--display);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:4px;text-align:center}
+#print .cg td{border:1px solid #888;vertical-align:top;padding:3px 4px;height:92px;font-size:9px;line-height:1.25}
+#print .cg tbody td{background:#fff!important}
+#print .cg tbody td.out{background:#e4e4e4!important}
+#print .cg .dn{font-weight:700;font-size:11px;margin-bottom:2px}
+#print .cg td.out .dn{color:#888}
+#print .cg .it{margin:0 0 3px;padding-left:4px;border-left:3px solid #121112;break-inside:avoid}
+#print .cg .it.pr{border-left-color:#1f5fbf}
+#print .cg .it .k{font-weight:700}
+#print .cg .nb{color:#c8102e;font-weight:700}
+#print .ckey{font-size:10px;margin:6px 0 0;color:#333}
 #print.measuring{display:block!important;position:absolute;left:-10000px;top:0;width:720px;font-family:var(--body);color:#000;background:#fff}
 @page{size:letter;margin:0.5in}
 @media print{
@@ -346,12 +360,13 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
 <aside class="sheet" id="expSheet" hidden role="dialog" aria-labelledby="expTitle">
   <h3 id="expTitle">Export</h3>
   <div class="form">
-    <label><span class="lbl">What to export</span><select id="x-type"><option value="full">Full schedule</option><option value="travel">Travel schedule (away games and bus times)</option><option value="ics">Calendar file (.ics) for Google, Outlook, or iPhone</option></select></label>
+    <label><span class="lbl">What to export</span><select id="x-type"><option value="full">Full schedule (list)</option><option value="cal">Calendar view (month grid)</option><option value="travel">Travel schedule (away games and bus times)</option><option value="ics">Calendar file (.ics) for Google, Outlook, or iPhone</option></select></label>
     <div class="two" id="x-dates">
       <label><span class="lbl">From</span><input type="date" id="x-from"></label>
       <label><span class="lbl">To</span><input type="date" id="x-to"></label>
     </div>
     <label><span class="lbl">Team</span><select id="x-team"><option value="">All teams</option></select></label>
+    <label id="x-incWrap" hidden><span class="lbl">Show</span><select id="x-inc"><option value="games">Games</option><option value="pracs">Practices</option><option value="both">Games and practices</option></select></label>
     <label class="chk" id="x-offWrap" hidden><input type="checkbox" id="x-off"> Include officials (full schedule only)</label>
     <p class="small muted" id="x-note">Your browser's print window opens. Choose <b>Save as PDF</b> as the destination.</p>
     <p class="err" id="xerr"></p>
@@ -578,7 +593,7 @@ const hasWork=g=>g.ha==="H"&&!g.cancelled&&g.team!=="Music";
 const LOGO=document.querySelector(".brand img").src;
 let events=[], unsubEv=null, canEvents=false, editingE=null, gameTeams=[];
 const canGameFor=t=>canEdit||gameTeams.includes(t);
-let practices=[], mode="games", coachTeams=[], gameHours=2, unsubPrac=null, editingP=null, pWasCancelled=false;
+let pracTeams=[], practices=[], mode="games", coachTeams=[], gameHours=2, unsubPrac=null, editingP=null, pWasCancelled=false;
 let games=[], teamList=[], canEdit=false, view="cal", editingId=null, loaded=false, metaExists=null;
 let cur=new Date(); cur.setDate(1);
 try{ const s=JSON.parse(localStorage.getItem("sandovalSched")||"{}"); if(s.view)view=s.view; if(s.mode)mode=s.mode; if(s.pg)$("pGames").checked=true; if(s.fac)$("fFac").value=s.fac; if(s.team!==undefined)window.__team=s.team; }catch(e){}
@@ -596,7 +611,7 @@ function monthRange(d){ const a=new Date(d.getFullYear(),d.getMonth(),1), b=new 
 
 function fillTeams(){
   const sel=$("fTeam"), keep=sel.value||window.__team||"";
-  const list=[...new Set(teamList.concat(games.map(g=>g.team)).filter(Boolean))].sort();
+  const list=[...new Set(teamList.concat(games.map(g=>g.team),practices.map(x=>x.team),pracTeams).filter(Boolean))].sort();
   sel.innerHTML='<option value="">All teams</option>'+list.map(t=>`<option${t===keep?" selected":""}>${esc(t)}</option>`).join("");
   window.__team=undefined;
   $("teamList").innerHTML=list.map(t=>`<option value="${esc(t)}">`).join("");
@@ -703,8 +718,11 @@ function openSheet(g,date){
     const offHtml=canSeeRefs&&needsRefs(g)?`<dt>Officials</dt><dd>${offA.length?offA.map(x=>esc(x.name)+(x.confirmed?" (confirmed)":" (unconfirmed)")).join(", "):"None yet"}</dd>`:"";
     const wl=hasWork(g)?posFor(g).concat(su[g.id]&&su[g.id].nurse?["nurse"]:[]):[];
     const wkHtml=wl.length?`<div class="lbl" style="margin-top:14px">Workers</div><div class="slots" id="roSlots">${wl.map(k=>slotHtml(g,k,su)).join("")}</div>`:"";
-    $("ro").innerHTML=`${g.cancelled?'<p style="margin:0 0 6px"><span class="cx" style="font-size:13px">CANCELLED</span> This game will not be played.</p>':""}<dl class="ro"><dt>Date</dt><dd>${fmtDate(g.date)}${g.tent?" (may change)":""}</dd><dt>Time</dt><dd>${esc(g.time||"TBA")}</dd><dt>Opponent or event</dt><dd>${esc(vs(g))}</dd>${g.facility?`<dt>Facility</dt><dd>${esc(g.facility)}</dd>`:""}${g.ha==="A"?`<dt>Bus departs</dt><dd>${esc(g.depart||"Not set")}</dd>`:""}${offHtml}</dl>${wkHtml}<div class="row" style="margin-top:16px"><button class="btn" id="roClose">Close</button></div>`;
+    $("ro").innerHTML=`${g.cancelled?'<p style="margin:0 0 6px"><span class="cx" style="font-size:13px">CANCELLED</span> This game will not be played.</p>':""}<dl class="ro"><dt>Date</dt><dd>${fmtDate(g.date)}${g.tent?" (may change)":""}</dd><dt>Time</dt><dd>${esc(g.time||"TBA")}</dd><dt>Opponent or event</dt><dd>${esc(vs(g))}</dd>${g.facility?`<dt>Facility</dt><dd>${esc(g.facility)}</dd>`:""}${g.ha==="A"?(coachTeams.includes(g.team)&&!g.cancelled?`<dt>Bus departs</dt><dd><span class="row" style="gap:8px;flex-wrap:wrap"><input type="text" id="ro-depart" value="${esc(g.depart||"")}" placeholder="e.g. 4:15 PM" style="max-width:130px"><button class="btn primary" type="button" id="ro-departSave">Save bus time</button></span><span class="err" id="ro-derr"></span></dd>`:`<dt>Bus departs</dt><dd>${esc(g.depart||"Not set")}</dd>`):""}${offHtml}</dl>${wkHtml}<div class="row" style="margin-top:16px"><button class="btn" id="roClose">Close</button></div>`;
     $("roClose").onclick=closeSheet; $("roClose").focus();
+    const dsv=$("ro-departSave"); if(dsv)dsv.onclick=async()=>{ const v=$("ro-depart").value.trim(); dsv.disabled=true; $("ro-derr").textContent="";
+      try{ await gamesCol().doc(g.id).update({depart:v}); g.depart=v; toast("Bus time saved"); }catch(e){ $("ro-derr").textContent=denied(e)?"You don't have permission to change this bus time.":"Couldn't save. Check your connection."; }
+      dsv.disabled=false; };
     const rs=$("roSlots"); if(rs)rs.onclick=async e=>{ const t=e.target.closest("[data-take],[data-drop]"); if(!t)return; const ok=t.dataset.take?await takeSlot(g,t.dataset.take,su):await dropSlot(g,t.dataset.drop,su); if(ok)openSheet(g); };
   }
 }
@@ -992,7 +1010,7 @@ function watchPractices(){
   const [a,b]=monthRange(cur);
   if(unsubEv){unsubEv();unsubEv=null;}
   unsubEv=fdb.collection("events").where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ events=sn.docs.map(d=>Object.assign({id:d.id},d.data())); if(mode==="practices")render(); },()=>{});
-  unsubPrac=pracCol().where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ practices=sn.docs.map(d=>Object.assign({id:d.id},d.data())); if(mode==="practices")render(); },()=>{});
+  unsubPrac=pracCol().where("date",">=",a).where("date","<",b).onSnapshot(sn=>{ practices=sn.docs.map(d=>Object.assign({id:d.id},d.data())); fillTeams(); if(mode==="practices")render(); },()=>{});
 }
 async function loadPracCfg(){ try{ const d=await fdb.collection("meta").doc("practiceCfg").get(); if(d.exists&&d.data().gameHours)gameHours=+d.data().gameHours; }catch(_){} }
 const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -1008,7 +1026,7 @@ function openPractice(x,date){
   const can=x?myTeam(x.team):canPractice();
   if(can){
     $("pForm").hidden=false; $("pRo").hidden=true; $("pTitle").textContent=x?"Edit practice":"Add practice";
-    const teams=canEdit?[...new Set(teamList.concat(games.map(g=>g.team)))].filter(t=>t&&t!=="Music").sort():coachTeams.slice().sort();
+    const teams=canEdit?[...new Set(teamList.concat(games.map(g=>g.team),practices.map(p=>p.team),pracTeams))].filter(t=>t&&t!=="Music").sort():coachTeams.slice().sort();
     $("p-team").innerHTML=teams.map(t=>`<option${x&&x.team===t?" selected":""}>${esc(t)}</option>`).join("");
     $("p-team").disabled=!!x&&!canEdit;
     $("p-date").value=x?x.date:(date||todayIso); $("p-start").value=x?x.start:""; $("p-end").value=x?x.end:"";
@@ -1138,9 +1156,10 @@ let coachesList=[];
 function cTab(w){ ["list","log","set"].forEach(x=>{ $("ct2-"+x).setAttribute("aria-pressed",x===w); $("cp2-"+x).hidden=x!==w; }); if(w==="list")loadCoaches(); if(w==="log")loadLog(); if(w==="set")$("s-hours").value=gameHours; }
 $("ct2-list").onclick=()=>cTab("list"); $("ct2-log").onclick=()=>cTab("log"); $("ct2-set").onclick=()=>cTab("set");
 $("c-close").onclick=closeSheet;
-$("coachBtn").onclick=()=>{ $("cerr2").textContent=""; showSheet("cSheet"); drawCoachTeams([]); cTab("list"); };
+async function loadPracTeams(){ try{ const sn=await pracCol().get(); pracTeams=[...new Set(sn.docs.map(d=>d.data().team).filter(Boolean))]; }catch(_){} }
+$("coachBtn").onclick=async()=>{ $("cerr2").textContent=""; showSheet("cSheet"); drawCoachTeams([]); cTab("list"); await loadPracTeams(); if(!document.querySelector("#c-teams input:checked"))drawCoachTeams([]); };
 function allTeams(){ return [...new Set(teamList.concat(games.map(g=>g.team)))].filter(t=>t&&t!=="Music").sort(); }
-function drawCoachTeams(sel){ $("c-teams").innerHTML=allTeams().map(t=>`<label class="chk"><input type="checkbox" value="${esc(t)}"${sel.includes(t)?" checked":""}> ${esc(t)}</label>`).join(""); }
+function drawCoachTeams(sel){ $("c-teams").innerHTML=[...new Set(allTeams().concat(pracTeams,sel))].filter(t=>t&&t!=="Music").sort().map(t=>`<label class="chk"><input type="checkbox" value="${esc(t)}"${sel.includes(t)?" checked":""}> ${esc(t)}</label>`).join(""); }
 async function loadCoaches(){
   try{ const sn=await coachCol().get(); coachesList=sn.docs.map(d=>Object.assign({email:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(b.name));
     $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow crow"><div class="cwho"><b>${esc(c.name||"")}</b><div class="small muted">${esc(c.email)}</div></div><div class="small cteams">${c.role==="events"?"Events only (GS Secretary)":esc((c.teams||[]).join(", "))+(c.games?" · practices and games":"")}</div><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
@@ -1333,6 +1352,7 @@ $("x-go").onclick=async()=>{
   if(type!=="ics"&&(!from||!to||to<from)){ $("xerr").textContent="Pick a From date and a To date after it."; return; }
   if(type==="ics"&&!team){ $("xerr").textContent="Pick a team. The calendar file includes that team's whole schedule."; return; }
   if(!fdb){ $("xerr").textContent="The schedule isn't connected."; return; }
+  if(type==="cal"){ $("x-go").disabled=true; $("xerr").textContent=""; try{ await exportCal(from,to,team,$("x-inc").value); }catch(e){ $("xerr").textContent="Couldn't build the PDF. Check your connection and try again."; } $("x-go").disabled=false; return; }
   $("x-go").disabled=true; $("xerr").textContent="";
   try{
     const snap=type==="ics"?await gamesCol().where("team","==",team).get():await gamesCol().where("date",">=",from).where("date","<=",to).get();
@@ -1356,7 +1376,7 @@ $("x-go").onclick=async()=>{
     });
     if(!list.length)rows=`<tr><td colspan="${cols.length}">No games in this range.</td></tr>`;
     $("print").innerHTML=`<div class="ph"><img src="${LOGO}" alt=""><div><h1>Sandoval ${title}</h1><p>${esc(range)}</p></div></div><table class="pt"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
-    const old=document.title; document.title="Sandoval "+title+" "+from+" to "+to;
+    setLandscape(false); const old=document.title; document.title="Sandoval "+title+" "+from+" to "+to;
     const pr=$("print"); pr.style.zoom="";
     if(team){ pr.classList.add("measuring"); const maxH=930; let z=1;
       for(let i=0;i<25;i++){ pr.style.width=(720/z)+"px"; const h=pr.scrollHeight*z; if(h<=maxH)break; z=Math.max(0.3,z*Math.min(0.97,Math.sqrt(maxH/h))); }
@@ -1366,7 +1386,42 @@ $("x-go").onclick=async()=>{
   $("x-go").disabled=false;
 };
 
-function syncExport(){ const ics=$("x-type").value==="ics"; $("x-dates").hidden=ics;
+// calendar (month grid) export, landscape, one month per page
+function setLandscape(on){ let st=document.getElementById("pgLand"); if(on){ if(!st){ st=document.createElement("style"); st.id="pgLand"; st.textContent="@page{size:letter landscape;margin:0.4in}"; document.head.appendChild(st); } } else if(st)st.remove(); }
+window.addEventListener("afterprint",()=>setLandscape(false));
+async function exportCal(from,to,team,inc){
+  const wantG=inc!=="pracs", wantP=inc!=="games";
+  let gl=[], pl=[];
+  if(wantG){ const sn=await gamesCol().where("date",">=",from).where("date","<=",to).get(); gl=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(g=>!team||g.team===team).sort(sortGames); }
+  if(wantP){ const sn=await pracCol().where("date",">=",from).where("date","<=",to).get(); pl=sn.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!team||x.team===team).sort(sortP); }
+  const byDay={}; const put=(d,h)=>{ (byDay[d]=byDay[d]||[]).push(h); };
+  // games and practices merged in time order per day
+  const items=[];
+  gl.forEach(g=>items.push({date:g.date,t:mins(g.time),h:`<div class="it"><span class="k">${esc(g.time||"TBA")}</span> ${team?"":esc(g.team)+" "}${esc(vs(g))}${g.tent?" (may change)":""}${g.cancelled?' <span class="nb">CANCELLED</span>':""}</div>`}));
+  pl.forEach(x=>items.push({date:x.date,t:tmin(x.start),h:`<div class="it pr"><span class="k">${esc(fmt12(x.start))}–${esc(fmt12(x.end))}</span> ${team?"":esc(x.team)+" "}Practice · ${esc(pLoc(x))}${x.cancelled?' <span class="nb">CANCELLED</span>':""}</div>`}));
+  items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.t-b.t).forEach(i=>put(i.date,i.h));
+  const what=inc==="both"?"Games and practices":inc==="pracs"?"Practices":"Games";
+  const key=inc==="both"?`<p class="ckey">Games show the opponent (vs = home, @ = away). Practices are labeled “Practice” with a blue bar.</p>`:"";
+  let html=""; const d0=new Date(from+"T12:00:00"); let y=d0.getFullYear(), m=d0.getMonth(); const lastK=to.slice(0,7);
+  for(let n=0;n<24;n++){ const mk=y+"-"+pad(m+1); if(mk>lastK)break;
+    const first=new Date(y,m,1,12), days=new Date(y,m+1,0).getDate(), lead=first.getDay();
+    let cells=""; for(let i=0;i<lead;i++)cells+=`<td class="out"></td>`;
+    for(let d=1;d<=days;d++){ const ds=mk+"-"+pad(d), inR=ds>=from&&ds<=to;
+      cells+=`<td${inR?"":' class="out"'}><div class="dn">${d}</div>${inR?(byDay[ds]||[]).join(""):""}</td>`;
+      if((lead+d)%7===0&&d<days)cells+="</tr><tr>"; }
+    const tail=(7-(lead+days)%7)%7; for(let i=0;i<tail;i++)cells+=`<td class="out"></td>`;
+    html+=`<div class="cm"><div class="ph"><img src="${LOGO}" alt=""><div><h1>Sandoval Athletics Calendar</h1><p>${MN[m]} ${y}${team?" · "+esc(team):""} · ${what}</p></div></div><table class="cg"><thead><tr>${DAYS.map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody><tr>${cells}</tr></tbody></table>${key}</div>`;
+    m++; if(m>11){m=0;y++;} }
+  const pr=$("print"); pr.style.zoom=""; pr.innerHTML=html;
+  pr.classList.add("measuring"); pr.style.width="960px";
+  pr.querySelectorAll(".cm").forEach(c=>{ c.style.zoom=""; let z=1; const maxH=700;
+    for(let i=0;i<25;i++){ c.style.width=(960/z)+"px"; const h=c.scrollHeight*z; if(h<=maxH)break; z=Math.max(0.3,z*Math.min(0.97,Math.sqrt(maxH/h))); }
+    c.style.width=""; if(z<1){ c.style.width=(960/z)+"px"; c.style.zoom=String(Math.floor(z*1000)/1000); } });
+  pr.classList.remove("measuring"); pr.style.width="";
+  const old=document.title; document.title="Sandoval Calendar "+from+" to "+to+(team?" "+team:"");
+  setLandscape(true); closeSheet(); setTimeout(()=>{ window.print(); document.title=old; },150);
+}
+function syncExport(){ const ics=$("x-type").value==="ics"; $("x-dates").hidden=ics; $("x-incWrap").hidden=$("x-type").value!=="cal";
   const allOpt=$("x-team").querySelector('option[value=""]'); if(allOpt){ allOpt.textContent=ics?"Pick a team":"All teams"; }
   $("x-go").textContent=ics?"Download calendar file":"Create PDF";
   $("x-note").innerHTML=ics?"Downloads a .ics file. Open it, or import it into Google Calendar (Settings, then Import), Outlook, or the iPhone Calendar app. It has every game and practice on that team's schedule. Games with a time are 2 hours long; TBA games are all-day.":"Your browser's print window opens. Choose <b>Save as PDF</b> as the destination."; }
