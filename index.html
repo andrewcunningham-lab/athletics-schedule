@@ -162,15 +162,27 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
 .ev.pr{border-left-style:solid}
 .ev.gov{border-style:dashed;border-left:4px dashed var(--c);opacity:.85;background:transparent}
 .day .cnt{display:none}
-#moreBtn{display:none}
+.brk{flex-basis:100%;height:0}
+.admwrap{position:relative;display:inline-flex}
+.admmenu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;width:300px;max-height:calc(100vh - 160px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px}
+.mg{padding:4px 0}
+.mg+.mg{border-top:1px solid var(--line)}
+.mgh{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:6px 10px 2px}
+.mi{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:6px;font-weight:600;cursor:pointer}
+.mi small{display:block;font-weight:400;font-size:12.5px;color:var(--muted)}
+.mi:hover,.mi:focus-visible{background:var(--bg)}
+.mg:not(:has(.mi:not([hidden]))){display:none}
 .daylist{display:none}
 @media (max-width:700px){
   .tools{gap:8px}
   .tools .seg{flex:1 1 100%;display:flex}
   .tools .seg button{flex:1;padding:8px 6px}
   .tools .lbl{display:none}
-  #moreBtn:not([hidden]){display:inline-flex;justify-content:center}
-  .tools:not(.open) .admintool{display:none!important}
+  .tools{position:relative}
+  .tools .brk{display:none}
+  .tools .admwrap{position:static;flex:1 1 calc(50% - 4px)}
+  .tools .admwrap .btn{flex:1}
+  .admmenu{left:0;right:0;width:auto;top:100%}
   .day .n{flex-direction:column;gap:3px}
   .tools select{flex:1 1 60%;min-width:0}
   .tools .spacer{display:none}
@@ -280,20 +292,33 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
     <label class="chk" id="pGamesWrap" hidden><input type="checkbox" id="pGames"> Show games</label>
     <label class="lbl" for="fTeam">Team</label>
     <select id="fTeam"><option value="">All teams</option></select>
+    <span class="brk"></span>
     <span class="spacer"></span>
-    <button class="btn" id="moreBtn" hidden aria-expanded="false">AD tools ▾</button>
+    <button class="btn undo" id="undoBtn" hidden>Undo</button>
     <button class="btn" id="wkBtn">Sign up to work</button>
     <button class="btn" id="exportBtn">Export</button>
-    <button class="btn admintool" id="fileBtn" hidden>Import file</button>
-    <button class="btn admintool" id="mirrorBtn" hidden>Mirror season</button>
-    <button class="btn admintool" id="backupBtn" hidden>Download backup</button>
-    <button class="btn admintool" id="renameBtn" hidden>Rename team</button>
-    <button class="btn admintool" id="refBtn" hidden>Officials</button>
-    <button class="btn admintool" id="cfBtn" hidden>Game confirmations</button>
-    <button class="btn admintool" id="dupBtn" hidden>Find duplicates</button>
-    <button class="btn undo" id="undoBtn" hidden>Undo</button>
-    <button class="btn admintool" id="importBtn" hidden>Load starter basketball schedule</button>
-    <button class="btn admintool" id="coachBtn" hidden>Coaches</button>
+    <div class="admwrap">
+      <button class="btn" id="moreBtn" hidden aria-expanded="false" aria-haspopup="menu" aria-controls="adMenu">AD tools ▾</button>
+      <div class="admmenu" id="adMenu" hidden role="menu" aria-label="AD tools">
+        <div class="mg"><div class="mgh">Game day</div>
+          <button class="mi" role="menuitem" id="refBtn" hidden>Officials<small>Assign and confirm officials</small></button>
+          <button class="mi" role="menuitem" id="cfBtn" hidden>Game confirmations<small>Email opposing ADs</small></button>
+        </div>
+        <div class="mg"><div class="mgh">People</div>
+          <button class="mi" role="menuitem" id="coachBtn" hidden>Coaches<small>Who can add practices, games, and events</small></button>
+        </div>
+        <div class="mg"><div class="mgh">Schedule tools</div>
+          <button class="mi" role="menuitem" id="fileBtn" hidden>Import file<small>Games, practices, officials, or workers from a CSV</small></button>
+          <button class="mi" role="menuitem" id="mirrorBtn" hidden>Mirror season<small>Copy a season to next year</small></button>
+          <button class="mi" role="menuitem" id="renameBtn" hidden>Rename team</button>
+          <button class="mi" role="menuitem" id="dupBtn" hidden>Find duplicates</button>
+          <button class="mi" role="menuitem" id="importBtn" hidden>Load starter basketball schedule</button>
+        </div>
+        <div class="mg"><div class="mgh">Backup</div>
+          <button class="mi" role="menuitem" id="backupBtn" hidden>Download backup</button>
+        </div>
+      </div>
+    </div>
     <button class="btn primary" id="addBtn" hidden>+ Add game</button>
     <button class="btn primary" id="addPBtn" hidden>+ Add practice</button>
     <button class="btn primary" id="addEBtn" hidden>+ Add event</button>
@@ -757,7 +782,11 @@ $("ref-close").addEventListener("click",closeSheet);
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("scrim").hidden)closeSheet(); });
 
 // ---- events ----
-$("moreBtn").onclick=()=>{ const t=document.querySelector(".tools"); const o=t.classList.toggle("open"); $("moreBtn").setAttribute("aria-expanded",o); $("moreBtn").textContent=o?"AD tools ▴":"AD tools ▾"; };
+function setAdMenu(o){ $("adMenu").hidden=!o; $("moreBtn").setAttribute("aria-expanded",o); $("moreBtn").textContent=o?"AD tools ▴":"AD tools ▾"; }
+$("moreBtn").onclick=e=>{ e.stopPropagation(); setAdMenu($("adMenu").hidden); };
+$("adMenu").addEventListener("click",e=>{ if(e.target.closest(".mi"))setAdMenu(false); });
+document.addEventListener("click",e=>{ if(!$("adMenu").hidden&&!e.target.closest(".admwrap"))setAdMenu(false); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("adMenu").hidden){ setAdMenu(false); $("moreBtn").focus(); } });
 $("m-games").onclick=()=>{mode="games";savePref();render();};
 $("m-prac").onclick=()=>{mode="practices";savePref();render();};
 $("pGames").onchange=()=>{savePref();render();};
@@ -1397,7 +1426,7 @@ async function exportCal(from,to,team,inc){
   const byDay={}; const put=(d,h)=>{ (byDay[d]=byDay[d]||[]).push(h); };
   // games and practices merged in time order per day
   const items=[];
-  gl.forEach(g=>items.push({date:g.date,t:mins(g.time),h:`<div class="it"><span class="k">${esc(g.time||"TBA")}</span> ${team?"":esc(g.team)+" "}${esc(vs(g))}${g.tent?" (may change)":""}${g.cancelled?' <span class="nb">CANCELLED</span>':""}</div>`}));
+  gl.forEach(g=>items.push({date:g.date,t:mins(g.time),h:`<div class="it"><span class="k">${esc(g.time||"TBA")}</span> ${team?"":esc(g.team)+" "}${esc(vs(g))}${g.ha==="A"&&!g.cancelled?" · Bus "+(g.depart?esc(g.depart):"not set"):""}${g.tent?" (may change)":""}${g.cancelled?' <span class="nb">CANCELLED</span>':""}</div>`}));
   pl.forEach(x=>items.push({date:x.date,t:tmin(x.start),h:`<div class="it pr"><span class="k">${esc(fmt12(x.start))}–${esc(fmt12(x.end))}</span> ${team?"":esc(x.team)+" "}Practice · ${esc(pLoc(x))}${x.cancelled?' <span class="nb">CANCELLED</span>':""}</div>`}));
   items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.t-b.t).forEach(i=>put(i.date,i.h));
   const what=inc==="both"?"Games and practices":inc==="pracs"?"Practices":"Games";
