@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAD() { return request.auth != null && request.auth.token.email == 'ad@sandoval501.org' && request.auth.token.email_verified == true; }
+    function seesRefs() { return request.auth != null && request.auth.token.email_verified == true && request.auth.token.email in ['ad@sandoval501.org', 'cara.garner@sandoval501.org']; }
+    function coachDoc() { return /databases/$(database)/documents/coaches/$(request.auth.token.email); }
+    function isCoachFor(team) { return request.auth != null && request.auth.token.email_verified == true && exists(coachDoc()) && team in get(coachDoc()).data.teams; }
+    function isGameCoachFor(team) { return isCoachFor(team) && get(coachDoc()).data.get('games', false) == true; }
+    function isEventEditor() { return request.auth != null && request.auth.token.email_verified == true && exists(coachDoc()) && get(coachDoc()).data.get('role', '') == 'events'; }
+    match /games/{id} { allow read: if true; allow create: if isAD() || isGameCoachFor(request.resource.data.team); allow update: if isAD() || (isGameCoachFor(resource.data.team) && isGameCoachFor(request.resource.data.team)) || (isCoachFor(resource.data.team) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['depart'])); allow delete: if isAD() || isGameCoachFor(resource.data.team); }
+    match /meta/{id} { allow read: if true; allow write: if isAD(); }
+    match /refs/{id} { allow read: if seesRefs(); allow write: if isAD(); }
+    match /refAssign/{id} { allow read: if seesRefs(); allow write: if isAD(); }
+    match /schools/{id} { allow read, write: if isAD(); }
+    match /mailcfg/{id} { allow read, write: if isAD(); }
+    match /events/{id} { allow read: if true; allow write: if isAD() || isEventEditor(); }
+    match /coaches/{email} { allow read: if isAD() || (request.auth != null && request.auth.token.email == email); allow write: if isAD(); }
+    match /practices/{id} { allow read: if true; allow create: if isAD() || isCoachFor(request.resource.data.team); allow update: if isAD() || (isCoachFor(resource.data.team) && isCoachFor(request.resource.data.team)); allow delete: if isAD() || isCoachFor(resource.data.team); }
+    match /practiceLog/{id} { allow read: if isAD(); allow create: if isAD() || isCoachFor(request.resource.data.team); }
+    match /workerAccounts/{uid} { allow read: if seesRefs() || (request.auth != null && request.auth.uid == uid); allow create, update: if request.auth != null && request.auth.uid == uid && request.resource.data.keys().hasOnly(['email','name']) && request.resource.data.email == request.auth.token.email; allow delete: if isAD() || (request.auth != null && request.auth.uid == uid); }
+    match /workerDirectory/{id} { allow read: if seesRefs(); allow write: if isAD(); }
+    match /signups/{id} { allow read: if true; allow write: if isAD();
+      allow create: if request.auth != null && request.resource.data.keys().hasOnly(['gameId','date','slot','name','uid']) && request.resource.data.uid == request.auth.uid && request.resource.data.slot in ['admin','book','clock','clock2','gate','conc'] && id == request.resource.data.gameId + '_' + request.resource.data.slot && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60 && exists(/databases/$(database)/documents/games/$(request.resource.data.gameId));
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid; }
+  }
+}
