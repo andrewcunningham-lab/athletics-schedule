@@ -578,6 +578,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
   </div>
   <div class="row" style="margin-top:12px"><button class="btn" id="ref-close">Close</button></div>
 </aside>
+<datalist id="workerNames"></datalist>
 <aside class="sheet wide" id="weSheet" hidden role="dialog" aria-labelledby="weTitle">
   <h3 id="weTitle">Worker emails</h3>
   <p class="small muted">Everyone signed up to work this school year. Workers who sign up while signed in are matched to their sign-in email on their own. Type an email for anyone else, then click Save. Reminders go out the day before each game they're working. Only you, Ryan, and Cara can see these emails.</p>
@@ -797,7 +798,8 @@ let wkTouched=false;
 function drawWork(g){
   wkTouched=!!(g&&Array.isArray(g.pos));
   const pos=g?posFor(g):defaultPos({team:""}); const cur=(g&&su[g.id])||{};
-  $("wkSlots").innerHTML=POS.map(([k,L])=>`<div class="wrow${k!=="nurse"&&!pos.includes(k)?" off":""}" data-k="${k}"><span class="n">${L}</span><input type="text" id="wk-${k}" value="${esc((cur[k]&&cur[k].name)||"")}" placeholder="${k==="nurse"?"Assigned by you":"Open"}">${k==="nurse"?"<span></span>":`<label><input type="checkbox" id="wn-${k}"${pos.includes(k)?" checked":""}> Needed</label>`}</div>`).join("");
+  if(canEdit)fillWorkerNames();
+  $("wkSlots").innerHTML=POS.map(([k,L])=>`<div class="wrow${k!=="nurse"&&!pos.includes(k)?" off":""}" data-k="${k}"><span class="n">${L}</span><input type="text" id="wk-${k}" list="workerNames" autocomplete="off" value="${esc((cur[k]&&cur[k].name)||"")}" placeholder="${k==="nurse"?"Assigned by you":"Open"}">${k==="nurse"?"<span></span>":`<label><input type="checkbox" id="wn-${k}"${pos.includes(k)?" checked":""}> Needed</label>`}</div>`).join("");
   syncWkWrap();
 }
 function syncWkWrap(){ $("wkWrap").hidden=!(canEdit&&$("g-ha").value==="H"&&$("g-team").value.trim()!=="Music"); }
@@ -921,7 +923,8 @@ async function ensureSignedIn(){
 }
 async function takeSlot(g,slot,map){
   const u=await ensureSignedIn(); if(!u)return false;
-  const name=prompt("Sign up for "+POSL[slot]+" — "+fmtDate(g.date)+" "+g.team+" vs "+g.opp+".\n\nName to show on the schedule:",u.displayName||"");
+  let prev=""; try{ const a=await fdb.collection("workerAccounts").doc(u.uid).get(); if(a.exists)prev=a.data().name||""; }catch(_){}
+  const name=prompt("Sign up for "+POSL[slot]+" — "+fmtDate(g.date)+" "+g.team+" vs "+g.opp+".\n\nName to show on the schedule:",prev||u.displayName||"");
   if(name===null)return false; const nm=name.trim().slice(0,60); if(!nm){ toast("Type a name to sign up."); return false; }
   const d={gameId:g.id,date:g.date,slot,name:nm,uid:u.uid};
   try{ await suCol().doc(g.id+"_"+slot).set(d); (map[g.id]=map[g.id]||{})[slot]=d; toast("You're signed up for "+POSL[slot]);
@@ -1282,32 +1285,65 @@ $("spBtn").onclick=()=>{ spSeasons(); showSheet("spSheet"); loadSpending(); };
 $("sp-season").onchange=loadSpending; $("sp-close").onclick=closeSheet;
 
 // ---- worker emails (for day-before reminders) ----
-const weKey=n=>String(n||"").toLowerCase().replace(/\s+/g," ").trim().replace(/\//g,"-");
-let weRows=[];
+// Groups name versions that are clearly one person: same sign-in, same email, same name apart from
+// capitals/spaces/punctuation, or a last name only that matches exactly one full name.
+const weKey=n=>String(n||"").toLowerCase().replace(/\s+/g," ").trim().replace(/\//g,"-"); // same as the reminder script's key
+const weLoose=n=>String(n||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+let weRows=[], weSignups=[];
+function weGroup(signups,dir,acct){
+  const nodes={}; const P={}; const find=x=>P[x]===x?x:(P[x]=find(P[x])); const join=(a,b)=>{ a=find(a); b=find(b); if(a!==b)P[b]=a; };
+  signups.forEach(x=>{ const nm=String(x.name||"").replace(/\s+/g," ").trim(); if(!nm)return; const k=weKey(nm); if(!k)return;
+    const N=nodes[k]=nodes[k]||{k,names:{},uids:new Set(),count:0}; N.names[nm]=(N.names[nm]||0)+1; N.count++; if(x.uid)N.uids.add(x.uid); P[k]=P[k]||k; });
+  const keys=Object.keys(nodes);
+  const byLoose={}; keys.forEach(k=>{ const l=weLoose(k); if(!l)return; if(byLoose[l])join(byLoose[l],k); else byLoose[l]=k; });
+  const byUid={}; keys.forEach(k=>nodes[k].uids.forEach(u=>{ if(byUid[u])join(byUid[u],k); else byUid[u]=k; }));
+  const emailOf=k=>((dir[k]&&dir[k].email)||[...nodes[k].uids].map(u=>acct[u]&&acct[u].email).find(Boolean)||"").toLowerCase();
+  const byEmail={}; keys.forEach(k=>{ const e=emailOf(k); if(!e)return; if(byEmail[e])join(byEmail[e],k); else byEmail[e]=k; });
+  const full=keys.filter(k=>weLoose(k).includes(" ")), single=keys.filter(k=>weLoose(k)&&!weLoose(k).includes(" "));
+  single.forEach(k=>{ const m=full.filter(f=>weLoose(f).split(" ").pop()===weLoose(k)); const roots=[...new Set(m.map(find))]; if(roots.length===1)join(roots[0],k); });
+  const groups={}; keys.forEach(k=>{ (groups[find(k)]=groups[find(k)]||[]).push(k); });
+  return Object.values(groups).map(ks=>{
+    const all={}; ks.forEach(k=>Object.entries(nodes[k].names).forEach(([n,c])=>all[n]=(all[n]||0)+c));
+    const uids=new Set(ks.flatMap(k=>[...nodes[k].uids]));
+    const acctName=[...uids].map(u=>acct[u]&&acct[u].name).find(Boolean);
+    const names=Object.keys(all).sort((a,b)=>(b.split(" ").length>1)-(a.split(" ").length>1)||all[b]-all[a]||b.length-a.length);
+    const name=(acctName&&all[acctName.replace(/\s+/g," ").trim()]?acctName.replace(/\s+/g," ").trim():names[0]);
+    const dirEmail=ks.map(k=>dir[k]&&dir[k].email).find(Boolean)||"";
+    const acEmail=[...uids].map(u=>acct[u]&&acct[u].email).find(Boolean)||"";
+    return {name,keys:ks,others:Object.keys(all).filter(n=>n!==name),dir:dirEmail,acct:acEmail};
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+}
 async function loadWorkerEmails(){
   $("weList").innerHTML='<p class="small muted">Loading…</p>'; $("weErr").textContent="";
   try{
     const y=seasonOf(iso(new Date())), from=y+"-07-01", to=(y+1)+"-06-30";
     const [ss,ds]=await Promise.all([suCol().where("date",">=",from).where("date","<=",to).get(), fdb.collection("workerDirectory").get()]);
     const dir={}; ds.docs.forEach(d=>dir[d.id]=d.data());
-    const people={}; ss.docs.forEach(d=>{ const x=d.data(); const nm=String(x.name||"").trim(); if(!nm)return; const k=weKey(nm); const P=people[k]=people[k]||{name:nm,uids:new Set()}; if(x.uid)P.uids.add(x.uid); });
-    const uids=[...new Set(Object.values(people).flatMap(p=>[...p.uids]))]; const acct={};
+    weSignups=ss.docs.map(d=>Object.assign({_id:d.id},d.data()));
+    const uids=[...new Set(weSignups.map(x=>x.uid).filter(Boolean))]; const acct={};
     await Promise.all(uids.map(u=>fdb.collection("workerAccounts").doc(u).get().then(d=>{ if(d.exists)acct[u]=d.data(); }).catch(()=>{})));
-    weRows=Object.entries(people).map(([k,p])=>{ const a=[...p.uids].map(u=>acct[u]).find(Boolean); return {k,name:p.name,dir:(dir[k]&&dir[k].email)||"",acct:(a&&a.email)||""}; }).sort((a,b)=>a.name.localeCompare(b.name));
-    $("weList").innerHTML=weRows.length?weRows.map((r,i)=>`<div class="werow"><div><div class="nm">${esc(r.name)}</div>${r.acct?`<div class="src">Sign-in email: ${esc(r.acct)}</div>`:""}</div><input type="email" id="we-${i}" value="${esc(r.dir)}" placeholder="${r.acct?"Using sign-in email":"Email"}"></div>`).join(""):'<p class="small muted">No one is signed up to work yet this school year.</p>';
+    weRows=weGroup(weSignups,dir,acct);
+    const merged=weRows.filter(r=>r.others.length).length;
+    $("weList").innerHTML=(merged?`<p class="small muted">${merged} ${merged>1?"people were":"person was"} listed under more than one version of their name. Each is shown once below; clicking Save changes their sign-ups to the name shown.</p>`:"")+(weRows.length?weRows.map((r,i)=>`<div class="werow"><div><div class="nm">${esc(r.name)}</div>${r.others.length?`<div class="src">Also listed as: ${r.others.map(esc).join(", ")}</div>`:""}${r.acct?`<div class="src">Sign-in email: ${esc(r.acct)}</div>`:""}</div><input type="email" id="we-${i}" value="${esc(r.dir)}" placeholder="${r.acct?"Using sign-in email":"Email"}"></div>`).join(""):'<p class="small muted">No one is signed up to work yet this school year.</p>');
   }catch(e){ $("weList").innerHTML='<p class="err">Couldn\'t load worker emails. Check your connection and try again.</p>'; }
 }
 $("weBtn").onclick=()=>{ showSheet("weSheet"); loadWorkerEmails(); };
 $("we-close").onclick=closeSheet;
 $("we-save").onclick=async()=>{
-  const ch=weRows.map((r,i)=>({r,v:($("we-"+i)||{}).value!=null?$("we-"+i).value.trim():r.dir})).filter(x=>x.v!==x.r.dir);
-  const bad=ch.find(x=>x.v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.v)); if(bad){ $("weErr").textContent="Check the email for "+bad.r.name+"."; return; }
-  if(!ch.length){ toast("Nothing to save"); return; }
+  const vals=weRows.map((r,i)=>{ const el=$("we-"+i); return el?el.value.trim():r.dir; });
+  const badI=vals.findIndex(v=>v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)); if(badI>=0){ $("weErr").textContent="Check the email for "+weRows[badI].name+"."; return; }
+  const ops=[];
+  weRows.forEach((r,i)=>{ const v=vals[i], ck=weKey(r.name);
+    if(v!==r.dir||r.keys.some(k=>k!==ck)){ r.keys.forEach(k=>{ const ref=fdb.collection("workerDirectory").doc(k); if(v)ops.push(b=>b.set(ref,{name:r.name,email:v})); else ops.push(b=>b.delete(ref)); }); if(!r.keys.includes(ck)){ const ref=fdb.collection("workerDirectory").doc(ck); if(v)ops.push(b=>b.set(ref,{name:r.name,email:v})); } }
+    weSignups.forEach(x=>{ if(r.keys.includes(weKey(x.name))&&String(x.name).replace(/\s+/g," ").trim()!==r.name)ops.push(b=>b.update(suCol().doc(x._id),{name:r.name})); });
+  });
+  if(!ops.length){ toast("Nothing to save"); return; }
   $("we-save").disabled=true;
-  try{ const b=fdb.batch(); ch.forEach(({r,v})=>{ const ref=fdb.collection("workerDirectory").doc(r.k); if(v)b.set(ref,{name:r.name,email:v}); else b.delete(ref); r.dir=v; }); await b.commit(); toast("Saved "+ch.length+" email"+(ch.length>1?"s":"")); $("weErr").textContent=""; }
+  try{ for(let i=0;i<ops.length;i+=400){ const b=fdb.batch(); ops.slice(i,i+400).forEach(f=>f(b)); await b.commit(); } toast("Saved"); await loadWorkerEmails(); }
   catch(e){ $("weErr").textContent=denied(e)?"Saving was blocked. Publish the new Firebase rules first.":"Couldn't save. Check your connection."; }
   $("we-save").disabled=false;
 };
+async function fillWorkerNames(){ try{ const y=seasonOf(iso(new Date())); const ss=await suCol().where("date",">=",y+"-07-01").where("date","<=",(y+1)+"-06-30").get(); const n=[...new Set(ss.docs.map(d=>String(d.data().name||"").replace(/\s+/g," ").trim()).filter(Boolean))].sort(); $("workerNames").innerHTML=n.map(x=>`<option value="${esc(x)}">`).join(""); }catch(_){} }
 
 // ---- sign up to work ----
 let wkGames=[], wkSu={};
