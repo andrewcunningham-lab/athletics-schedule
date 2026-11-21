@@ -163,6 +163,10 @@ button.slot.mine{border:1.5px solid var(--ink);cursor:pointer}
 .ev.gov{border-style:dashed;border-left:4px dashed var(--c);opacity:.85;background:transparent}
 .day .cnt{display:none}
 .brk{flex-basis:100%;height:0}
+.werow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.werow .nm{font-weight:700}
+.werow .src{font-size:12px;color:var(--muted)}
+@media (max-width:560px){.werow{grid-template-columns:1fr;gap:4px}}
 .spstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
 .spstat{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
 .spstat .k{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -312,6 +316,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
       <div class="admmenu" id="adMenu" hidden role="menu" aria-label="AD tools">
         <div class="mg"><div class="mgh">Game day</div>
           <button class="mi" role="menuitem" id="refBtn" hidden>Officials<small>Assign and confirm officials</small></button>
+          <button class="mi" role="menuitem" id="weBtn" hidden>Worker emails<small>Where day-before reminders go</small></button>
           <button class="mi" role="menuitem" id="cfBtn" hidden>Game confirmations<small>Email opposing ADs</small></button>
         </div>
         <div class="mg"><div class="mgh">People</div>
@@ -573,6 +578,13 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
   </div>
   <div class="row" style="margin-top:12px"><button class="btn" id="ref-close">Close</button></div>
 </aside>
+<aside class="sheet wide" id="weSheet" hidden role="dialog" aria-labelledby="weTitle">
+  <h3 id="weTitle">Worker emails</h3>
+  <p class="small muted">Everyone signed up to work this school year. Workers who sign up while signed in are matched to their sign-in email on their own. Type an email for anyone else, then click Save. Reminders go out the day before each game they're working. Only you, Ryan, and Cara can see these emails.</p>
+  <div id="weList"><p class="small muted">Loading…</p></div>
+  <p class="err" id="weErr"></p>
+  <div class="row" style="margin-top:12px"><button class="btn primary" id="we-save">Save</button><button class="btn" id="we-close">Close</button></div>
+</aside>
 <aside class="sheet wide" id="spSheet" hidden role="dialog" aria-labelledby="spTitle">
   <h3 id="spTitle">Spending</h3>
   <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
@@ -746,7 +758,7 @@ function renderList(){
 }
 
 // ---- sheets ----
-const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet"];
+const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; editingP=null; }
 function openSheet(g,date){
@@ -912,7 +924,9 @@ async function takeSlot(g,slot,map){
   const name=prompt("Sign up for "+POSL[slot]+" — "+fmtDate(g.date)+" "+g.team+" vs "+g.opp+".\n\nName to show on the schedule:",u.displayName||"");
   if(name===null)return false; const nm=name.trim().slice(0,60); if(!nm){ toast("Type a name to sign up."); return false; }
   const d={gameId:g.id,date:g.date,slot,name:nm,uid:u.uid};
-  try{ await suCol().doc(g.id+"_"+slot).set(d); (map[g.id]=map[g.id]||{})[slot]=d; toast("You're signed up for "+POSL[slot]); return true; }
+  try{ await suCol().doc(g.id+"_"+slot).set(d); (map[g.id]=map[g.id]||{})[slot]=d; toast("You're signed up for "+POSL[slot]);
+    if(u.email)fdb.collection("workerAccounts").doc(u.uid).set({email:u.email,name:nm}).catch(()=>{});
+    return true; }
   catch(e){ toast(denied(e)?"Someone already has that spot.":"Couldn't sign up. Check your connection."); return false; }
 }
 async function dropSlot(g,slot,map){
@@ -976,7 +990,7 @@ function setEditor(user){
   $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email):"Not signed in";
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in";
   $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
-  $("coachBtn").hidden=!canEdit; $("spBtn").hidden=!canSeeRefs; $("moreBtn").hidden=!(canEdit||canSeeRefs);
+  $("coachBtn").hidden=!canEdit; $("spBtn").hidden=!canSeeRefs; $("weBtn").hidden=!canEdit; $("moreBtn").hidden=!(canEdit||canSeeRefs);
   coachTeams=[]; gameTeams=[]; canEvents=false; loadCoach(user);
   checkSetup(); fixNames(); render();
 }
@@ -1266,6 +1280,34 @@ async function loadSpending(){
 }
 $("spBtn").onclick=()=>{ spSeasons(); showSheet("spSheet"); loadSpending(); };
 $("sp-season").onchange=loadSpending; $("sp-close").onclick=closeSheet;
+
+// ---- worker emails (for day-before reminders) ----
+const weKey=n=>String(n||"").toLowerCase().replace(/\s+/g," ").trim().replace(/\//g,"-");
+let weRows=[];
+async function loadWorkerEmails(){
+  $("weList").innerHTML='<p class="small muted">Loading…</p>'; $("weErr").textContent="";
+  try{
+    const y=seasonOf(iso(new Date())), from=y+"-07-01", to=(y+1)+"-06-30";
+    const [ss,ds]=await Promise.all([suCol().where("date",">=",from).where("date","<=",to).get(), fdb.collection("workerDirectory").get()]);
+    const dir={}; ds.docs.forEach(d=>dir[d.id]=d.data());
+    const people={}; ss.docs.forEach(d=>{ const x=d.data(); const nm=String(x.name||"").trim(); if(!nm)return; const k=weKey(nm); const P=people[k]=people[k]||{name:nm,uids:new Set()}; if(x.uid)P.uids.add(x.uid); });
+    const uids=[...new Set(Object.values(people).flatMap(p=>[...p.uids]))]; const acct={};
+    await Promise.all(uids.map(u=>fdb.collection("workerAccounts").doc(u).get().then(d=>{ if(d.exists)acct[u]=d.data(); }).catch(()=>{})));
+    weRows=Object.entries(people).map(([k,p])=>{ const a=[...p.uids].map(u=>acct[u]).find(Boolean); return {k,name:p.name,dir:(dir[k]&&dir[k].email)||"",acct:(a&&a.email)||""}; }).sort((a,b)=>a.name.localeCompare(b.name));
+    $("weList").innerHTML=weRows.length?weRows.map((r,i)=>`<div class="werow"><div><div class="nm">${esc(r.name)}</div>${r.acct?`<div class="src">Sign-in email: ${esc(r.acct)}</div>`:""}</div><input type="email" id="we-${i}" value="${esc(r.dir)}" placeholder="${r.acct?"Using sign-in email":"Email"}"></div>`).join(""):'<p class="small muted">No one is signed up to work yet this school year.</p>';
+  }catch(e){ $("weList").innerHTML='<p class="err">Couldn\'t load worker emails. Check your connection and try again.</p>'; }
+}
+$("weBtn").onclick=()=>{ showSheet("weSheet"); loadWorkerEmails(); };
+$("we-close").onclick=closeSheet;
+$("we-save").onclick=async()=>{
+  const ch=weRows.map((r,i)=>({r,v:($("we-"+i)||{}).value!=null?$("we-"+i).value.trim():r.dir})).filter(x=>x.v!==x.r.dir);
+  const bad=ch.find(x=>x.v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.v)); if(bad){ $("weErr").textContent="Check the email for "+bad.r.name+"."; return; }
+  if(!ch.length){ toast("Nothing to save"); return; }
+  $("we-save").disabled=true;
+  try{ const b=fdb.batch(); ch.forEach(({r,v})=>{ const ref=fdb.collection("workerDirectory").doc(r.k); if(v)b.set(ref,{name:r.name,email:v}); else b.delete(ref); r.dir=v; }); await b.commit(); toast("Saved "+ch.length+" email"+(ch.length>1?"s":"")); $("weErr").textContent=""; }
+  catch(e){ $("weErr").textContent=denied(e)?"Saving was blocked. Publish the new Firebase rules first.":"Couldn't save. Check your connection."; }
+  $("we-save").disabled=false;
+};
 
 // ---- sign up to work ----
 let wkGames=[], wkSu={};
