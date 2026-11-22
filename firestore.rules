@@ -13,6 +13,7 @@ service cloud.firestore {
     match /refAssign/{id} { allow read: if seesRefs(); allow write: if isAD(); }
     match /schools/{id} { allow read, write: if isAD(); }
     match /mailcfg/{id} { allow read, write: if isAD(); }
+    match /confSent/{id} { allow read, write: if isAD(); }
     match /events/{id} { allow read: if true; allow write: if isAD() || isEventEditor(); }
     match /coaches/{email} { allow read: if isAD() || (request.auth != null && request.auth.token.email == email); allow write: if isAD(); }
     match /practices/{id} { allow read: if true; allow create: if isAD() || isCoachFor(request.resource.data.team); allow update: if isAD() || (isCoachFor(resource.data.team) && isCoachFor(request.resource.data.team)); allow delete: if isAD() || isCoachFor(resource.data.team); }

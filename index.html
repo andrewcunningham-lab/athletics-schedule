@@ -619,6 +619,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
     <div id="c-plan"></div>
     <p class="err" id="cerr"></p>
     <div class="row" id="c-goWrap" hidden><button class="btn primary" id="c-go">Send emails</button></div>
+    <div id="c-auto" style="margin-top:16px"></div>
   </div>
   <div id="cp-sch" hidden>
     <div class="form">
@@ -636,6 +637,14 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
       <label><span class="lbl">Message</span><textarea id="e-body" rows="11"></textarea></label>
       <p class="small muted">Fill-ins: <b>{school}</b> = their school name, <b>{week}</b> = the week's dates, <b>{games}</b> = the list of games.</p>
       <label><span class="lbl">Email sender link (Google Apps Script web app URL)</span><input type="text" id="e-url" placeholder="https://script.google.com/macros/s/.../exec"></label>
+      <div class="lbl" style="margin-top:8px">Automatic confirmations</div>
+      <label class="chk"><input type="checkbox" id="e-auto"> Email each game's confirmation automatically, 7 days before the game</label>
+      <p class="small muted">One email per game to that school's AD, BCC ad@sandoval501.org. Tournaments, regionals, sectionals, and cancelled games are never confirmed. If a confirmed game's date or time changes, that school gets an UPDATED email. Needs the confirmations timer script set up once.</p>
+      <div class="two"><label><span class="lbl">Send at</span><select id="e-ahour"></select></label><label><span class="lbl">Start with games on</span><input type="date" id="e-afrom"></label></div>
+      <p class="small muted">“Start with games on” keeps it from re-sending games you already confirmed by hand. Games before that date are left to you.</p>
+      <label><span class="lbl">Automatic email subject</span><input type="text" id="e-asubj"></label>
+      <label><span class="lbl">Automatic email message</span><textarea id="e-abody" rows="9"></textarea></label>
+      <p class="small muted">Fill-ins: <b>{school}</b> = their school name, <b>{date}</b> = the game's date (Tuesday, December 8), <b>{game}</b> = the game line (date · time · team · home/away).</p>
       <div class="row"><button class="btn primary" id="e-save">Save</button><button class="btn" id="e-test">Send a test to ad@sandoval501.org</button></div>
       <p class="err" id="eerr"></p>
     </div>
@@ -1462,6 +1471,8 @@ $("o-file").addEventListener("change",async e=>{ const f=e.target.files[0]; e.ta
 const schCol=()=>fdb.collection("schools");
 const cfgDoc=()=>fdb.collection("mailcfg").doc("settings");
 const DEF_SUBJ="Game confirmation: Sandoval and {school}, week of {week}";
+const DEF_ASUBJ="Game confirmation: Sandoval and {school}, {date}";
+const DEF_ABODY="Hello,\n\nI'm confirming the following game between Sandoval and {school}:\n\n{game}\n\nPlease let us know if anything doesn't match your schedule.\n\nThank you,\nSandoval Athletics\nad@sandoval501.org";
 const DEF_BODY="Hello,\n\nI'm confirming the following game(s) between Sandoval and {school} for the week of {week}:\n\n{games}\n\nPlease let us know if anything doesn't match your schedule.\n\nThank you,\nSandoval Athletics\nad@sandoval501.org";
 let schools=[], mailCfg={}, unsubSch=null, cfPlan=[];
 const nk=t=>String(t||"").toLowerCase().replace(/\s*\(.*?\)\s*/g," ").replace(/[^a-z0-9/&]+/g," ").trim();
@@ -1471,16 +1482,39 @@ function watchSchools(){
   unsubSch=schCol().onSnapshot(sn=>{ schools=sn.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(b.name)); if(!$("cfSheet").hidden&&!$("cp-sch").hidden)renderSchools(); },()=>{});
 }
 function findSchool(opp){ const k=nk(opp); if(!k)return null; return schools.find(sc=>[sc.name].concat(sc.aliases||[]).some(n=>nk(n)===k))||null; }
-function cfTab(w){ ["send","sch","set"].forEach(x=>{ $("ct-"+x).setAttribute("aria-pressed",x===w); $("cp-"+x).hidden=x!==w; }); if(w==="sch")renderSchools(); if(w==="set")loadCfg(); }
+function cfTab(w){ ["send","sch","set"].forEach(x=>{ $("ct-"+x).setAttribute("aria-pressed",x===w); $("cp-"+x).hidden=x!==w; }); if(w==="sch")renderSchools(); if(w==="set")loadCfg(); if(w==="send")renderAutoLog(); }
+// Automatic confirmations: what went out, what's coming, and what was skipped (and why).
+async function renderAutoLog(){
+  const el=$("c-auto"); if(!el)return;
+  try{
+    const d=await cfgDoc().get(); const c=(d.exists&&d.data())||{};
+    const from=new Date(todayIso+"T12:00:00"); from.setDate(from.getDate()-14); const to=new Date(todayIso+"T12:00:00"); to.setDate(to.getDate()+7);
+    const [ls,gs]=await Promise.all([fdb.collection("confSent").where("date",">=",iso(from)).get(),gamesCol().where("date",">",todayIso).where("date","<=",iso(to)).get()]);
+    const log={}; ls.docs.forEach(x=>log[x.id]=x.data());
+    const hr=c.autoHour==null?8:+c.autoHour, hl=(hr%12||12)+":00 "+(hr<12?"AM":"PM");
+    const coming=c.autoOn?gs.docs.map(x=>Object.assign({id:x.id},x.data())).filter(g=>!g.cancelled&&!SKIP.test(g.opp||"")&&!SKIP.test(g.team||"")&&(!c.autoFrom||g.date>=c.autoFrom)&&!(log[g.id]&&log[g.id].status==="sent"&&log[g.id].date===g.date&&(log[g.id].time||"")===(g.time||""))).sort(sortGames):[];
+    const rows=Object.entries(log).map(([id,v])=>Object.assign({id},v)).sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,40);
+    const st=v=>v.status==="sent"?(v.updated?"Sent UPDATED email":"Sent")+" "+new Date(v.sentAt||v.at).toLocaleString([], {month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})+(v.to?" to "+v.to:"")+(v.manual?" (Send button)":""):v.status==="skipped"?"NOT SENT: "+v.note:v.status==="cancelled"?"Cancelled after confirming. No email sent about it.":v.status;
+    el.innerHTML=`<div class="lbl">Automatic confirmations: ${c.autoOn?"ON, sending at "+hl+(c.autoFrom?" for games on "+esc(fmtDate(c.autoFrom))+" and later":""):"OFF (turn on under Email setup)"}</div>`
+      +(coming.length?`<div class="cfs"><div class="h">Going out ${esc(hl)} on or after the day each is 7 days away</div><ul>${coming.map(g=>`<li>${esc(gameLine(g))}${findSchool(g.opp)&&findSchool(g.opp).email?"":" — <b>no AD email on file, won't send</b>"}</li>`).join("")}</ul></div>`:"")
+      +(rows.length?`<div class="cfs"><div class="h">Recent</div><ul>${rows.map(v=>`<li>${esc(fmtDate(v.date))} · ${esc(v.time||"TBA")} · ${esc(v.team||"")}${v.school?" · "+esc(v.school):""} — ${esc(st(v))}</li>`).join("")}</ul></div>`:"");
+  }catch(_){ el.innerHTML='<p class="small muted">Automatic confirmations log will show here once the updated Firestore rules are published.</p>'; }
+}
 $("ct-send").onclick=()=>cfTab("send"); $("ct-sch").onclick=()=>cfTab("sch"); $("ct-set").onclick=()=>cfTab("set");
 $("cf-close").addEventListener("click",closeSheet);
 function nextMonday(){ const d=new Date(todayIso+"T12:00:00"); const add=((8-d.getDay())%7)||7; d.setDate(d.getDate()+add); return iso(d); }
 $("cfBtn").onclick=async()=>{ $("cerr").textContent=""; $("c-plan").innerHTML=""; $("c-goWrap").hidden=true; $("c-week").value=nextMonday(); showSheet("cfSheet"); cfTab("send"); await loadCfg(true); };
 async function loadCfg(quiet){ try{ const d=await cfgDoc().get(); mailCfg=(d.exists&&d.data())||{}; }catch(_){ mailCfg={}; }
-  $("e-subj").value=mailCfg.subject||DEF_SUBJ; $("e-body").value=mailCfg.body||DEF_BODY; $("e-url").value=mailCfg.url||""; }
+  $("e-subj").value=mailCfg.subject||DEF_SUBJ; $("e-body").value=mailCfg.body||DEF_BODY; $("e-url").value=mailCfg.url||"";
+  const hs=$("e-ahour"); if(!hs.options.length)for(let h=5;h<=20;h++)hs.add(new Option((h%12||12)+":00 "+(h<12?"AM":"PM"),h));
+  $("e-auto").checked=!!mailCfg.autoOn; hs.value=String(mailCfg.autoHour==null?8:mailCfg.autoHour); $("e-afrom").value=mailCfg.autoFrom||"";
+  $("e-asubj").value=mailCfg.autoSubj||DEF_ASUBJ; $("e-abody").value=mailCfg.autoBody||DEF_ABODY; }
 $("e-save").onclick=async()=>{ $("eerr").textContent=""; const url=$("e-url").value.trim();
   if(url&&!/^https:\/\/script\.google\.com\//.test(url)){ $("eerr").textContent="That link should start with https://script.google.com/"; return; }
-  try{ mailCfg={subject:$("e-subj").value,body:$("e-body").value,url}; await cfgDoc().set(mailCfg); await fdb.collection("meta").doc("notify").set({url}); toast("Email setup saved"); }catch(_){ $("eerr").textContent="Couldn't save. Check your connection."; } };
+  const autoOn=$("e-auto").checked; let autoFrom=$("e-afrom").value;
+  if(autoOn&&!mailCfg.autoOn&&!autoFrom){ const d=new Date(todayIso+"T12:00:00"); d.setDate(d.getDate()+8); autoFrom=iso(d); $("e-afrom").value=autoFrom; }
+  if(autoOn&&!mailCfg.autoOn&&!confirm("Turn on automatic confirmations? Starting with games on "+fmtDate(autoFrom)+", each game's confirmation goes out 7 days before it. Games before that date stay with you."))return;
+  try{ mailCfg={subject:$("e-subj").value,body:$("e-body").value,url,autoOn,autoHour:+$("e-ahour").value,autoFrom,autoSubj:$("e-asubj").value,autoBody:$("e-abody").value}; await cfgDoc().set(mailCfg); await fdb.collection("meta").doc("notify").set({url}); toast("Email setup saved"); }catch(_){ $("eerr").textContent="Couldn't save. Check your connection."; } };
 function weekLabel(mon){ const a=new Date(mon+"T12:00:00"), b=new Date(a); b.setDate(b.getDate()+6); return (a.getMonth()+1)+"/"+a.getDate()+" – "+(b.getMonth()+1)+"/"+b.getDate(); }
 const gameLine=g=>fmtDate(g.date)+" · "+(g.time||"TBA")+" · "+g.team+" · "+(g.ha==="A"?"Away (at "+g.opp+")":"Home (at Sandoval)");
 const fill=(t,sc,wk,gl)=>String(t).replace(/\{school\}/g,sc).replace(/\{week\}/g,wk).replace(/\{games\}/g,gl);
@@ -1520,6 +1554,7 @@ $("c-go").onclick=async()=>{
   const emails=picks.map(p=>({to:p.sc.email,subject:fill(subj,p.sc.name,wk,""),body:fill(body,p.sc.name,wk,p.games.map(gameLine).join("\n"))}));
   $("c-go").disabled=true; $("cerr").textContent="";
   try{ const j=await sendMail(emails); const bad=(j.failed||[]);
+    try{ const b=fdb.batch(); picks.forEach(p=>{ if(bad.includes(p.sc.email))return; p.games.forEach(g=>b.set(fdb.collection("confSent").doc(g.id),{status:"sent",manual:true,updated:false,date:g.date,time:g.time||"",team:g.team,school:p.sc.name,to:p.sc.email,subject:"",note:"Sent with the Send button",at:Date.now(),sentAt:Date.now()})); }); await b.commit(); }catch(_){}
     toast("Sent "+(j.sent||0)+" email"+(j.sent===1?"":"s")); if(bad.length)$("cerr").textContent="These didn't send: "+bad.join(", ");
   }catch(e){ $("cerr").textContent=e.message||"Couldn't send. Check your connection."; }
   $("c-go").disabled=false;
@@ -1820,7 +1855,7 @@ $("backupBtn").onclick=async()=>{
 
 // ---- mirror season ----
 let mplan=[];
-const SKIP=/tournament|tourney|shootout|multi-day|classic|invitational|thanksgiving|holiday|meet the|program/i;
+const SKIP=/tournament|tourney|shootout|multi-day|classic|invitational|thanksgiving|holiday|meet the|program|regional|sectional/i;
 function addDays(s,n){ const d=new Date(s+"T12:00:00"); d.setDate(d.getDate()+n); return iso(d); }
 function seasonOf(s){ const d=new Date(s+"T12:00:00"); const y=d.getMonth()>=6?d.getFullYear():d.getFullYear()-1; return y; }
 $("mirrorBtn").onclick=()=>{
