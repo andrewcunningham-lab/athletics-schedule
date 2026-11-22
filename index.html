@@ -11,6 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="texting.js"></script>
 <script src="texting-ui.js"></script>
+<script src="attendance.js"></script>
 <style>
 html,body{margin:0}
 
@@ -317,6 +318,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
     <span class="brk"></span>
     <span class="spacer"></span>
     <button class="btn undo" id="undoBtn" hidden>Undo</button>
+    <button class="btn" id="attBtn" hidden>Attendance</button>
     <button class="btn" id="wkBtn">Sign up to work</button>
     <button class="btn" id="exportBtn">Export</button>
     <div class="admwrap">
@@ -330,6 +332,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
         </div>
         <div class="mg"><div class="mgh">People</div>
           <button class="mi" role="menuitem" id="coachBtn" hidden>Coaches<small>Who can add practices, games, and events</small></button>
+          <button class="mi" role="menuitem" id="attUpBtn" hidden>Attendance upload<small>Post today's absences for coaches</small></button>
         </div>
         <div class="mg"><div class="mgh">Schedule tools</div>
           <button class="mi" role="menuitem" id="fileBtn" hidden>Import file<small>Games, practices, officials, or workers from a CSV</small></button>
@@ -590,6 +593,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
   <div class="row" style="margin-top:12px"><button class="btn" id="ref-close">Close</button></div>
 </aside>
 <aside class="sheet wide" id="txSheet" hidden role="dialog" aria-labelledby="txTitle"></aside>
+<aside class="sheet wide" id="attSheet" hidden role="dialog" aria-labelledby="attTitle"></aside>
 <datalist id="workerNames"></datalist>
 <aside class="sheet wide" id="weSheet" hidden role="dialog" aria-labelledby="weTitle">
   <h3 id="weTitle">Worker emails</h3>
@@ -780,7 +784,7 @@ function renderList(){
 }
 
 // ---- sheets ----
-const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet","txSheet"];
+const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet","txSheet","attSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; editingP=null; }
 function openSheet(g,date){
@@ -1016,12 +1020,14 @@ function setEditor(user){
   $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
   $("txBtn").hidden=!canEdit; if(window.Texting){ if(canEdit&&fdb)Texting.init({fdb,toast,showSheet,closeSheet,slotsFor,needsRefs,sortGames,fmtDate,todayIso}); else Texting.stop(); }
   $("coachBtn").hidden=!canEdit; $("spBtn").hidden=!canSeeRefs; $("weBtn").hidden=!canEdit; $("moreBtn").hidden=!(canEdit||canSeeRefs);
-  coachTeams=[]; gameTeams=[]; canEvents=false; loadCoach(user);
+  coachTeams=[]; gameTeams=[]; canEvents=false; $("attBtn").hidden=true; $("attUpBtn").hidden=!canEdit;
+  if(window.Attendance&&fdb)Attendance.init({fdb,toast,showSheet,closeSheet,coachTeams:()=>coachTeams});
+  loadCoach(user);
   checkSetup(); fixNames(); render();
 }
 async function loadCoach(user){
   if(!user||!user.email||canEdit||!fdb)return;
-  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ const x=d.data(); if(x.role==="events"){ canEvents=true; $("who").textContent="Events: "+user.email; if(mode!=="practices"){ mode="practices"; } } else { coachTeams=(x.teams||[]).slice(); if(x.games)gameTeams=coachTeams.slice(); $("who").textContent="Coach: "+user.email; } render(); } }catch(_){}
+  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ const x=d.data(); if(x.role==="events"){ canEvents=true; $("who").textContent="Events: "+user.email; if(mode!=="practices"){ mode="practices"; } } else { coachTeams=(x.teams||[]).slice(); if(x.games)gameTeams=coachTeams.slice(); $("who").textContent="Coach: "+user.email; $("attBtn").hidden=!coachTeams.length; } render(); } }catch(_){}
 }
 if(!window.firebase){
   $("who").textContent="Not connected"; status("This schedule couldn't reach its database. Check the internet connection and reload.");
@@ -1398,6 +1404,8 @@ function refTab(which){ $("rt-need").setAttribute("aria-pressed",which==="need")
 $("rt-need").onclick=()=>refTab("need"); $("rt-list").onclick=()=>refTab("list");
 $("refBtn").onclick=()=>{ $("oerr").textContent=""; showSheet("refSheet"); refTab("need"); };
 $("txBtn").onclick=()=>{ if(window.Texting)Texting.open(); };
+$("attBtn").onclick=()=>{ if(window.Attendance)Attendance.openCoach(); };
+$("attUpBtn").onclick=()=>{ if(window.Attendance)Attendance.openAD(); };
 let needGames=[];
 async function loadNeeds(){
   $("needList").innerHTML='<p class="small muted">Loading…</p>';

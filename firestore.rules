@@ -14,6 +14,13 @@ service cloud.firestore {
     match /schools/{id} { allow read, write: if isAD(); }
     match /mailcfg/{id} { allow read, write: if isAD(); }
     match /confSent/{id} { allow read, write: if isAD(); }
+    // Team rosters: only that team's coaches can edit; ADs can read (to match the daily absence upload).
+    match /rosters/{id} { allow read: if isAD() || resource == null || isCoachFor(resource.data.team);
+      allow create: if isCoachFor(request.resource.data.team);
+      allow update: if isCoachFor(resource.data.team) && request.resource.data.team == resource.data.team;
+      allow delete: if isCoachFor(resource.data.team); }
+    // Today's attendance per team: only that team's coaches (and ADs) can read; only ADs post it.
+    match /attDay/{id} { allow read: if isAD() || resource == null || isCoachFor(resource.data.team); allow write: if isAD(); }
     match /events/{id} { allow read: if true; allow write: if isAD() || isEventEditor(); }
     match /coaches/{email} { allow read: if isAD() || (request.auth != null && request.auth.token.email == email); allow write: if isAD(); }
     match /practices/{id} { allow read: if true; allow create: if isAD() || isCoachFor(request.resource.data.team); allow update: if isAD() || (isCoachFor(resource.data.team) && isCoachFor(request.resource.data.team)); allow delete: if isAD() || isCoachFor(resource.data.team); }
