@@ -19,17 +19,19 @@ const MONTHS=["January","February","March","April","May","June","July","August",
 
 const DEFAULTS={
   adName:"Andrew Cunningham", school:"Sandoval", waveSize:3, waveMins:15, startHour:7, endHour:21, testMode:true,
+  recHour:9, recDeadlineHrs:4, autoRefill:false, calUrl:"",
   tpl:{
     season:"This is {ad}, AD at {school}. I am looking for officials for these {team} games at {school}:\n{list}\nReply with the numbers of the games you can work (for example: 1 3). Reply NO if you cannot work any of them. Thank you!",
     single:"This is {ad}, AD at {school}. I am looking for {count} official(s) for {team} on {date} at {time} at {school}. Please reply YES if you can work it or NO if you cannot. Thank you!",
     got:"Thank you! You are on for: {dates}. I will send a confirmation with your partners once each crew is full.",
     update:"Update for {short} at {school}: {name} has confirmed. Crew so far: {crew}. Still looking for {left} more official(s). Thank you!",
-    confirm:"Confirming {date} at {time} at {school} — {team}, full pay. Your partners: {partners}. Please reply if anything changes. Thank you!",
+    confirm:"Confirming {date} at {time} at {school} — {team}, full pay. Your partners: {partners}.{calendar} Please reply if anything changes. Thank you!",
+    recon:"Confirming tomorrow, {date} at {time} at {school} — {team}. Your partners: {partners}. Please reply YES to confirm you are still good for tomorrow. Thank you!",
     sorry:"My apologies {name}, I just had someone grab the last spot on {dates}.",
     changed:"Update for {short} at {school}: the crew has changed. Your partners are now: {partners}. Same time, {time}, full pay. Thank you!"
   }
 };
-const TPL_LABELS={season:"Season list",single:"One game (YES/NO)",got:"Thank-you after picking games",update:"Crew update (one game, not full yet)",confirm:"Crew full confirmation",sorry:"Apology (spot taken)",changed:"Crew changed (after a drop is refilled)"};
+const TPL_LABELS={season:"Season list",single:"One game (YES/NO)",got:"Thank-you after picking games",update:"Crew update (one game, not full yet)",confirm:"Crew full confirmation",sorry:"Apology (spot taken)",changed:"Crew changed (after a drop is refilled)",recon:"Day-before check"};
 
 // ---------- pure helpers ----------
 function normPhone(s){ let d=String(s||"").replace(/\D/g,""); if(d.length===11&&d[0]==="1")d=d.slice(1); return d.length===10?d:""; }
@@ -65,7 +67,7 @@ function parseReply(text){
 
 // ---------- engine ----------
 function createEngine(opt){
-  const db=opt.db, now=opt.now||(()=>Date.now()), slotsFor=opt.slotsFor||defaultSlotsFor;
+  const db=opt.db, now=opt.now||(()=>Date.now()), slotsFor=opt.slotsFor||defaultSlotsFor, calPage=opt.calPage||"";
   const C=n=>db.collection(n);
   const runs=()=>C("txRuns"), asks=()=>C("txAsks"), logC=()=>C("txLog"), inboxC=()=>C("txInbox"), refsC=()=>C("refs"), cfgDoc=()=>C("txcfg").doc("settings");
   let cfg=null;
@@ -74,6 +76,14 @@ function createEngine(opt){
   async function roster(){ const s=await refsC().get(); return s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(String(b.name))); }
   async function rosterMap(){ const m={}; (await roster()).forEach(r=>m[r.id]=r); return m; }
   function vars(c,extra){ return Object.assign({ad:c.adName,school:c.school},extra); }
+  function newToken(){ const b=new Uint8Array(18); (globalThis.crypto||require("crypto").webcrypto).getRandomValues(b); return Array.from(b,x=>"abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"[x%56]).join(""); }
+  // " Your games calendar: <link>." the first time an official is confirmed, once the calendar feed is set up; "" otherwise.
+  async function calendarLine(c,r){
+    if(!c.calUrl||!calPage||!r||!r.id)return "";
+    const s=await refsC().doc(r.id).get(); const d=s.exists?s.data():{}; if(d.calSent)return "";
+    let t=d.calToken; if(!t){ t=newToken(); await refsC().doc(r.id).update({calToken:t}); }
+    return " Your games calendar: "+calPage+"?t="+t+" ";
+  }
 
   async function log(e){ const ref=logC().doc(); await ref.set(Object.assign({at:now(),fake:true,gameIds:[],runId:null,askId:null,refId:null,result:""},e)); return ref; }
   async function addInbox(e){ const ref=inboxC().doc(); await ref.set(Object.assign({at:now(),status:"open",resolution:""},e)); return ref; }
@@ -168,6 +178,8 @@ function createEngine(opt){
       if(!due){ const a=await asks().where("runId","==",d.id).get(); due=!a.docs.some(x=>x.data().status==="pending"); }
       if(due)sent+=await sendWave(d.id,true);
     }
+    if(inHours&&h>=+c.recHour)sent+=await sendDayBefore(tomorrowIso());
+    await checkSilent();
     return sent;
   }
 
@@ -194,8 +206,9 @@ function createEngine(opt){
       if(!p.r)continue;
       const partners=andList(people.filter(q=>q!==p).map(q=>q.name))||"none";
       const v=vars(c,{date:longDate(game.date),short:shortMD(game.date),time:game.time||"TBA",team:game.team,partners});
-      const body=refill&&p.r.id!==newRefId?fill(c.tpl.changed,v):fill(c.tpl.confirm,v);
-      if(await send(p.r,body,{gameIds:[game.id],runId:runDoc?runDoc.id:null}))texted.add(p.name.toLowerCase());
+      const isConfirm=!(refill&&p.r.id!==newRefId); const cal=isConfirm?await calendarLine(c,p.r):"";
+      const body=isConfirm?fill(c.tpl.confirm,Object.assign({},v,{calendar:cal?cal.trimEnd():""})).replace(/ {2,}/g," "):fill(c.tpl.changed,v);
+      if(await send(p.r,body,{gameIds:[game.id],runId:runDoc?runDoc.id:null})){ texted.add(p.name.toLowerCase()); if(cal)await refsC().doc(p.r.id).update({calSent:true}); }
     }
     if(texted.size)await db.runTransaction(async t=>{ const s=await t.get(C("refAssign").doc(game.id)); const d=s.data()||{}; const sl=(d.slots||[]).map(x=>x&&x.name&&texted.has(x.name.toLowerCase())?Object.assign({},x,{confirmed:true}):x); t.set(C("refAssign").doc(game.id),Object.assign({},d,{slots:sl})); });
   }
@@ -212,7 +225,7 @@ function createEngine(opt){
     const c=await getCfg(), rm=await rosterMap();
     const s=await asks().where("items","array-contains-any",gameIds.slice(0,30)).get();
     for(const d of s.docs){
-      const a=d.data(); if(d.id===exceptAskId||!["pending","ambiguous"].includes(a.status))continue;
+      const a=d.data(); if(d.id===exceptAskId||a.kind==="recon"||!["pending","ambiguous"].includes(a.status))continue;
       const hit=a.items.filter(id=>gameIds.includes(id)&&!(a.apologized||[]).includes(id)); if(!hit.length)continue;
       const st=await loadState(a.items); const r=rm[a.refId];
       if(r)await send(r,fill(c.tpl.sorry,vars(c,{name:a.name,dates:andList(hit.map(id=>tinyDate(st.games[id].date)))})),{runId:a.runId,askId:d.id,gameIds:hit});
@@ -263,26 +276,29 @@ function createEngine(opt){
       return done("Opted out. No more texts will go to this number.");
     }
     const s=await asks().where("refId","==",r.id).get(); const week=7*864e5;
-    const open=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(a=>["pending","ambiguous"].includes(a.status)||(a.status==="closed"&&now()-a.sentAt<week)).sort((a,b)=>b.sentAt-a.sentAt);
+    const open=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(a=>["pending","ambiguous"].includes(a.status)||(a.kind==="recon"&&a.status==="silent")||(a.kind!=="recon"&&a.status==="closed"&&now()-a.sentAt<week)).sort((a,b)=>b.sentAt-a.sentAt);
     let target=null;
-    if(pr.type==="yes"){ const c=open.filter(a=>a.kind==="single"); if(c.length===1)target=c[0]; }
-    else if(pr.type==="nums"){ const c=open.filter(a=>a.kind==="season"); if(c.length===1&&pr.nums.every(n=>n>=1&&n<=c[0].items.length))target=c[0]; }
-    else if(pr.type==="no"){ if(open.length===1)target=open[0]; }
+    // A live request wins over an old one he was already told was filled; an old one only counts if it's the only one (a late reply).
+    const one=c=>{ const live=c.filter(a=>a.status!=="closed"); return live.length===1?live[0]:(!live.length&&c.length===1?c[0]:null); };
+    if(pr.type==="yes")target=one(open.filter(a=>a.kind==="single"||a.kind==="recon"));
+    else if(pr.type==="nums"){ const t=one(open.filter(a=>a.kind==="season")); if(t&&pr.nums.every(n=>n>=1&&n<=t.items.length))target=t; }
+    else if(pr.type==="no")target=one(open);
     if(!target){
       const why=!open.length?"No open request for this official.":pr.type==="unclear"?"Unclear reply.":open.length>1?"Has more than one open request.":"Reply doesn't match the request.";
-      for(const a of open)if(a.status==="pending")await asks().doc(a.id).update({status:"ambiguous"});
+      for(const a of open)if(a.status==="pending"||a.status==="silent")await asks().doc(a.id).update({status:"ambiguous"});
       await addInbox({type:open.length?"unclear":"reply",refId:r.id,name:r.name,phone:p,body,askIds:open.map(a=>a.id),note:why,logId:lr.id});
       const res=await done(why+" Sent to the inbox.",{askId:open.length===1?open[0].id:null,gameIds:open.length===1?open[0].items:[]});
       for(const a of open)await maybeNextWave(a.runId);
       return res;
     }
     let out;
-    if(pr.type==="no")out=await applyNo(target.id);
+    if(target.kind==="recon")out=await applyRecon(target.id,pr.type==="yes");
+    else if(pr.type==="no")out=await applyNo(target.id);
     else out=await applyClaim(target.id,pr.type==="yes"?[target.items[0]]:pr.nums.map(n=>target.items[n-1]));
     await maybeNextWave(target.runId);
     return done(out.summary,{askId:target.id,runId:target.runId,gameIds:target.items});
   }
-  async function maybeNextWave(runId){ const s=await runs().doc(runId).get(); if(!s.exists||s.data().status!=="running")return; const a=await asks().where("runId","==",runId).get(); if(!a.docs.some(x=>x.data().status==="pending")){ const c=await getCfg(); const h=new Date(now()).getHours(); if(h>=+c.startHour&&h<+c.endHour)await sendWave(runId,true); } }
+  async function maybeNextWave(runId){ if(!runId)return; const s=await runs().doc(runId).get(); if(!s.exists||s.data().status!=="running")return; const a=await asks().where("runId","==",runId).get(); if(!a.docs.some(x=>x.data().status==="pending")){ const c=await getCfg(); const h=new Date(now()).getHours(); if(h>=+c.startHour&&h<+c.endHour)await sendWave(runId,true); } }
 
   // AD removes someone from a crew (a drop). Reopens the spot and starts a one-game re-run on its own.
   async function dropFromCrew(gameId,slotName,note){
@@ -294,14 +310,59 @@ function createEngine(opt){
     if(!removed)throw new Error(slotName+" isn't on that crew.");
     const rm=await rosterMap(); const rr=(removed.refId&&rm[removed.refId])||Object.values(rm).find(y=>sameName(y.name,removed.name));
     const s=await asks().where("items","array-contains",gameId).get();
-    for(const d of s.docs){ const a=d.data(); if(rr&&a.refId===rr.id)await d.ref.update({claimed:(a.claimed||[]).filter(x=>x!==gameId),declined:[...new Set((a.declined||[]).concat([gameId]))]}); }
+    for(const d of s.docs){ const a=d.data(); if(rr&&a.refId===rr.id)await d.ref.update(Object.assign({claimed:(a.claimed||[]).filter(x=>x!==gameId),declined:[...new Set((a.declined||[]).concat([gameId]))]},a.kind==="recon"&&a.status!=="answered"?{status:"closed"}:{})); }
     await log({dir:"note",phone:"",refId:rr?rr.id:null,name:removed.name,body:"Removed from the crew for "+tinyDate(g.date)+" "+g.team+(note?" ("+note+")":"")+". Re-running the list for the open spot.",gameIds:[gameId]});
     return startRun({kind:"single",gameIds:[gameId],excluded:rr?[rr.id]:[],refill:{gameId,removed:removed.name}});
   }
 
+  // ----- day-before checks -----
+  async function sendDayBefore(dateIso){
+    const c=await getCfg(), rm=await rosterMap();
+    const gs=(await C("games").where("date","==",dateIso).get()).docs.map(d=>Object.assign({id:d.id},d.data())).filter(g=>g.ha==="H"&&!g.cancelled);
+    let n=0;
+    for(const g of gs){
+      const a=await C("refAssign").doc(g.id).get(); const people=crewPeople((a.exists&&a.data().slots)||[],rm); if(!people.length)continue;
+      const all=(await asks().where("items","array-contains",g.id).get()).docs.map(d=>d.data());
+      const prior=all.filter(x=>x.kind==="recon");
+      // someone who just took the spot in the last day (a late replacement) already got a confirmation; no need to check again
+      const fresh=all.filter(x=>x.kind!=="recon"&&(x.claimed||[]).includes(g.id)&&now()-(x.answeredAt||0)<864e5).map(x=>x.refId);
+      for(const p of people){
+        if(!p.r||prior.some(x=>x.refId===p.r.id)||fresh.includes(p.r.id))continue;
+        const partners=andList(people.filter(q=>q!==p).map(q=>q.name))||"none";
+        const ar=asks().doc();
+        await ar.set({runId:null,kind:"recon",team:g.team,refId:p.r.id,name:p.r.name,phone:normPhone(p.r.phone),items:[g.id],sentAt:now(),status:"pending",claimed:[],declined:[],apologized:[]});
+        if(await send(p.r,fill(c.tpl.recon,vars(c,{date:longDate(g.date),short:shortMD(g.date),time:g.time||"TBA",team:g.team,partners})),{askId:ar.id,gameIds:[g.id]}))n++;
+        else await ar.delete();
+      }
+    }
+    return n;
+  }
+  async function applyRecon(askId,yes){
+    const ad=await asks().doc(askId).get(); const a=ad.data(); const gid=a.items[0];
+    if(yes){
+      await ad.ref.update({status:"answered",answeredAt:now(),claimed:[gid]});
+      await db.runTransaction(async t=>{ const ref=C("refAssign").doc(gid); const s=await t.get(ref); const d=s.data()||{}; const sl=(d.slots||[]).map(x=>x&&x.name&&((x.refId&&x.refId===a.refId)||sameName(x.name,a.name))?Object.assign({},x,{confirmed:true,reconfirmed:true}):x); t.set(ref,Object.assign({},d,{slots:sl})); });
+      return {summary:"Re-confirmed for tomorrow"};
+    }
+    await ad.ref.update({status:"answered",answeredAt:now(),declined:[gid]});
+    await dropFromCrew(gid,a.name,"said no to the day-before check");
+    return {summary:"Said no to tomorrow. Removed from the crew; re-running the list"};
+  }
+  async function checkSilent(){
+    const c=await getCfg(); const hrs=+c.recDeadlineHrs||4;
+    const s=await asks().where("status","==","pending").get();
+    for(const d of s.docs){ const a=d.data(); if(a.kind!=="recon"||now()<a.sentAt+hrs*3600e3)continue;
+      await d.ref.update({status:"silent"});
+      if(c.autoRefill){ await dropFromCrew(a.items[0],a.name,"no reply to the day-before check");
+        await addInbox({type:"silent",refId:a.refId,name:a.name,phone:a.phone,body:"(no reply)",askIds:[d.id],note:"No reply in "+hrs+" hours. Released automatically and re-running the list.",auto:true}); }
+      else await addInbox({type:"silent",refId:a.refId,name:a.name,phone:a.phone,body:"(no reply)",askIds:[d.id],note:"No reply to the day-before check in "+hrs+" hours. At risk."});
+    }
+  }
+  function tomorrowIso(){ const d=new Date(now()); d.setDate(d.getDate()+1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+
   async function resolveInbox(id,resolution){ await inboxC().doc(id).update({status:"resolved",resolution,resolvedAt:now()}); }
 
-  return {getCfg,saveCfg,startRun,sendWave,tick,inbound,applyClaim,applyNo,dropFromCrew,resolveInbox,loadState,roster,
+  return {getCfg,saveCfg,startRun,sendWave,tick,inbound,applyClaim,applyNo,applyRecon,sendDayBefore,checkSilent,tomorrowIso,newToken,dropFromCrew,resolveInbox,loadState,roster,
     setRun:(id,o)=>runs().doc(id).update(o), clearOptOut:refId=>refsC().doc(refId).update({optedOut:false}), optOut:refId=>refsC().doc(refId).update({optedOut:true,optedOutAt:now()}),
     markAskHandled:id=>asks().doc(id).update({status:"answered",answeredAt:now()})};
 }

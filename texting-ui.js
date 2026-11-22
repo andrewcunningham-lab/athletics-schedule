@@ -106,6 +106,7 @@ async function drawSend(){
 
 // ---------- Running ----------
 function askStatus(a){
+  if(a.kind==="recon")return a.status==="pending"?"waiting for YES":a.status==="silent"?"NO REPLY — at risk":a.status==="ambiguous"?"unclear reply (in inbox)":a.status==="closed"?"removed from crew":(a.claimed||[]).length?"confirmed for tomorrow":"said no — replacement started";
   if(a.status==="pending")return "no reply yet";
   if(a.status==="ambiguous")return "unclear reply (in inbox)";
   if(a.status==="closed")return (a.apologized&&a.apologized.length?"told spot was taken":"closed");
@@ -114,10 +115,13 @@ function askStatus(a){
 }
 async function drawRuns(){
   const B=$("txBody"); const list=runsL.slice().sort((a,b)=>(a.status==="done")-(b.status==="done")||b.createdAt-a.createdAt);
-  if(!list.length){ B.innerHTML='<p class="small muted">Nothing running. Start one on the Send tab.</p>'; return; }
+  const rec=asksL.filter(a=>a.kind==="recon"&&Date.now()-a.sentAt<3*864e5).sort((a,b)=>b.sentAt-a.sentAt);
+  const recIds=[...new Set(rec.flatMap(a=>a.items))].filter(id=>!gamesCache[id]); if(recIds.length){ try{ Object.assign(gamesCache,(await E.loadState(recIds)).games); }catch(_){} }
+  const recHtml=rec.length?`<div class="txcard"><h4>Day-before checks</h4>${rec.map(a=>`<div class="txasks" style="margin-top:3px"><b>${esc(a.name)}</b> · ${esc(gLabel(a.items[0]))} ${esc((gamesCache[a.items[0]]||{}).team||"")} — ${esc(askStatus(a))}</div>`).join("")}</div>`:"";
+  if(!list.length){ B.innerHTML=recHtml+'<p class="small muted">Nothing running. Start one on the Send tab.</p>'; return; }
   const need=[...new Set(list.flatMap(r=>r.gameIds))].filter(id=>!gamesCache[id]||!gamesCache[id]._slots);
   if(need.length){ try{ const st=await E.loadState(need); need.forEach(id=>{ if(st.games[id])gamesCache[id]=Object.assign(gamesCache[id]||{},st.games[id],{_slots:st.slots[id]}); }); }catch(_){} }
-  B.innerHTML=`<p class="small muted">Waves go out only while this page is open somewhere (on your phone or computer) during texting hours. Tap “Send next wave now” to skip the wait.</p>`+list.map(r=>{
+  B.innerHTML=recHtml+`<p class="small muted">Waves go out only while this page is open somewhere (on your phone or computer) during texting hours. Tap “Send next wave now” to skip the wait.</p>`+list.map(r=>{
     const lbl=r.status==="running"?'<span class="txst run">Running</span>':r.status==="paused"?'<span class="txst pause">Paused</span>':r.status==="stopped"?'<span class="txst done">Stopped</span>':'<span class="txst done">Done — crews full</span>';
     const texted=new Set(asksL.filter(a=>a.runId===r.id).map(a=>a.refId)).size;
     const wave=r.status==="running"?(r.nextIdx>=r.queue.length?"Everyone on the list has been texted.":"Next wave about "+fmtT(r.nextWaveAt)+"."):"";
@@ -139,7 +143,7 @@ async function drawRuns(){
 }
 
 // ---------- Inbox ----------
-const TYPE={unclear:"Unclear reply",reply:"Reply with no open request",optout:"Opted out",unknown:"Unknown number"};
+const TYPE={unclear:"Unclear reply",reply:"Reply with no open request",optout:"Opted out",unknown:"Unknown number",silent:"No reply to day-before check"};
 async function drawInbox(){
   const B=$("txBody");
   if(!inboxL.length){ B.innerHTML='<p class="small muted">Nothing needs you right now.</p>'; return; }
@@ -151,12 +155,16 @@ async function drawInbox(){
     let acts="";
     if(it.type==="unclear"){
       acts=(it.askIds||[]).map(aid=>{ const a=askMap[aid]; if(!a)return ""; const head=`<div class="small" style="margin-top:6px"><b>${a.kind==="season"?"Season list":"One game"} · ${esc(a.team)}</b> (sent ${fmtWhen(a.sentAt)})</div>`;
+        if(a.kind==="recon")return `<div class="small" style="margin-top:6px"><b>Day-before check · ${esc(gLabel(a.items[0]))} ${esc(a.team)}</b></div><div class="txrow"><button class="btn" data-ryes="${aid}" data-i="${it.id}">Count as yes</button><button class="btn" data-rno="${aid}" data-i="${it.id}">Count as no (drop and refill)</button></div>`;
         if(a.kind==="single")return head+`<div class="txrow"><button class="btn" data-yes="${aid}" data-i="${it.id}">Count as yes</button><button class="btn" data-no="${aid}" data-i="${it.id}">Count as no</button></div>`;
         return head+a.items.map((g,n)=>`<label class="txpick"><input type="checkbox" data-pick="${aid}" value="${esc(g)}"> ${n+1}) ${esc(gLabel(g))}</label>`).join("")+`<div class="txrow"><button class="btn" data-save="${aid}" data-i="${it.id}">Put him on the checked games</button><button class="btn" data-no="${aid}" data-i="${it.id}">Count as no</button></div>`; }).join("")
         +`<div class="txrow"><button class="btn" data-manual="${it.id}">I'll reply myself</button><button class="btn" data-oo="${it.refId}" data-i="${it.id}">Mark opted out</button></div>`;
     } else if(it.type==="reply"){
       const crews=upcoming.filter(g=>(g._slots||[]).some(x=>x&&x.name&&String(x.name).toLowerCase()===String(it.name).toLowerCase()));
       acts=`<div class="txrow">${crews.map(g=>`<button class="btn" data-drop="${esc(g.id)}" data-name="${esc(it.name)}" data-i="${it.id}">Drop from ${esc(K.tinyDate(g.date))} crew</button>`).join("")}<button class="btn" data-ok="${it.id}">Done</button><button class="btn" data-oo="${it.refId}" data-i="${it.id}">Mark opted out</button></div>`;
+    } else if(it.type==="silent"){
+      const aid=(it.askIds||[])[0], a=askMap[aid];
+      acts=a?`<div class="small" style="margin-top:6px"><b>${esc(gLabel(a.items[0]))} ${esc(a.team)}</b></div>`+(it.auto?`<div class="txrow"><button class="btn" data-ok="${it.id}">OK</button></div>`:`<div class="txrow"><button class="btn" data-ryes="${aid}" data-i="${it.id}">He's good (count as yes)</button><button class="btn" data-rno="${aid}" data-i="${it.id}">Drop and find a replacement</button><button class="btn" data-ok="${it.id}">Leave him on</button></div>`):`<div class="txrow"><button class="btn" data-ok="${it.id}">Done</button></div>`;
     } else if(it.type==="optout"){
       acts=`<p class="small muted">No more texts will go to this number from the app until you clear it. Only clear it if they told you they want texts again.</p><div class="txrow"><button class="btn" data-ok="${it.id}">OK</button><button class="btn" data-clear="${it.refId}" data-i="${it.id}">Clear opt-out</button></div>`;
     } else acts=`<div class="txrow"><button class="btn" data-ok="${it.id}">Done</button></div>`;
@@ -164,6 +172,8 @@ async function drawInbox(){
   B.onclick=async e=>{ const t=e.target.closest("button"); if(!t)return; const d=t.dataset; const res=r=>E.resolveInbox(d.i,r);
     if(d.yes)return act(t,async()=>{ const r=await E.applyClaim(d.yes,[ (await ctx.fdb.collection("txAsks").doc(d.yes).get()).data().items[0] ]); await res(r.full.length?"Counted as yes, but the crew was already full (apology sent)":"Counted as yes"); return r; },r=>r.full.length?"Crew was already full — he got the apology text":"He's on the crew");
     if(d.no)return act(t,async()=>{ await E.applyNo(d.no); await res("Counted as no"); },"Counted as no");
+    if(d.ryes)return act(t,async()=>{ await E.applyRecon(d.ryes,true); await res("Counted as yes for tomorrow"); },"Re-confirmed");
+    if(d.rno){ if(!confirm("Remove him from tomorrow's crew and start texting for a replacement?"))return; return act(t,async()=>{ await E.applyRecon(d.rno,false); await res("Dropped; re-running the list"); },"Removed. Looking for a replacement."); }
     if(d.save){ const ids=[...B.querySelectorAll(`input[data-pick="${d.save}"]:checked`)].map(x=>x.value); if(!ids.length){ ctx.toast("Check at least one game, or tap Count as no."); return; }
       return act(t,async()=>{ const r=await E.applyClaim(d.save,ids); await res(r.summary); return r; },r=>r.summary); }
     if(d.manual)return act(t,async()=>{ const it=inboxL.find(x=>x.id===d.manual); for(const a of (it.askIds||[]))await E.markAskHandled(a); await res("AD replied himself"); },"Marked handled");
@@ -190,9 +200,12 @@ async function drawTest(){
     <label class="lbl" for="tx-tref">Official</label> <select id="tx-tref">${people.map(x=>`<option value="${esc(x.id)}"${x.id===testRef?" selected":""}>${esc(x.name)}${x.optedOut?" (opted out)":""}</option>`).join("")}<option value="__unknown"${testRef==="__unknown"?" selected":""}>A number not on the list</option></select>
     <div class="txthread" id="tx-thread">${thread.length?thread.map(m=>`<div class="txb ${m.dir}">${esc(m.body)}<small>${fmtT(m.at)}${m.result?" · "+esc(m.result):""}</small></div>`).join(""):'<span class="small muted">No texts with this number yet.</span>'}</div>
     <textarea id="tx-reply" placeholder="Type his reply, like YES, NO, 1 3, or anything else" style="min-height:56px"></textarea>
-    <div class="row" style="margin-top:6px"><button class="btn primary" id="tx-send">Send reply</button></div>`;
+    <div class="row" style="margin-top:6px"><button class="btn primary" id="tx-send">Send reply</button></div>
+    <div class="txcard" style="margin-top:16px"><h4>Day-before check</h4><p class="small muted">These go out on their own the day before each game at the time set in Settings. To test, send them now for any game date.</p>
+    <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><input type="date" id="tx-rdate" value="${esc(E.tomorrowIso())}"><button class="btn" id="tx-rsend">Send day-before checks now</button></div></div>`;
   const th=$("tx-thread"); th.scrollTop=th.scrollHeight;
   $("tx-tref").onchange=e=>{ testRef=e.target.value; drawTest(); };
+  $("tx-rsend").onclick=()=>{ const d=$("tx-rdate").value; if(!d)return; act($("tx-rsend"),()=>E.sendDayBefore(d),n=>n?"Sent "+n+" day-before check"+(n===1?"":"s"):"Nobody to check for that date (no crew, no phone numbers, or already sent)"); };
   $("tx-send").onclick=async()=>{ const body=$("tx-reply").value.trim(); if(!body)return; const phone=testRef==="__unknown"?"6185550199":ph;
     await act($("tx-send"),()=>E.inbound(phone,body),r=>String(r||"Received")); };
 }
@@ -207,12 +220,22 @@ async function drawSet(){
     <div class="two"><label><span class="lbl">Officials per wave</span><input type="number" min="1" max="20" id="ts-wave" value="${esc(c.waveSize)}"></label><label><span class="lbl">Minutes between waves</span><input type="number" min="1" max="1440" id="ts-mins" value="${esc(c.waveMins)}"></label></div>
     <div class="two"><label><span class="lbl">Texting starts</span><select id="ts-sh">${hrs.map(h=>`<option value="${h}"${h===+c.startHour?" selected":""}>${hl(h)}</option>`).join("")}</select></label><label><span class="lbl">Texting stops</span><select id="ts-eh">${hrs.map(h=>`<option value="${h}"${h===+c.endHour?" selected":""}>${hl(h)}</option>`).join("")}</select></label></div>
     <p class="small muted">Waves wait until texting hours. “Send next wave now” and “Start texting” go out right away.</p>
+    <div class="lbl">Day-before check</div>
+    <div class="two"><label><span class="lbl">Send at</span><select id="ts-rh">${hrs.map(h=>`<option value="${h}"${h===+c.recHour?" selected":""}>${hl(h)}</option>`).join("")}</select></label><label><span class="lbl">Hours to reply</span><input type="number" min="1" max="24" id="ts-rd" value="${esc(c.recDeadlineHrs)}"></label></div>
+    <label class="chk"><input type="checkbox" id="ts-ar"${c.autoRefill?" checked":""}> If an official doesn't reply in time, drop him and find a replacement automatically</label>
+    <p class="small muted">Off: a silent official is flagged in the Inbox as at risk, and you decide. On: he's released and the list is re-run on its own.</p>
+    <div class="lbl">Officials' calendar</div>
+    <label><span class="lbl">Calendar feed link (Google Apps Script web app URL)</span><input type="text" id="ts-cal" value="${esc(c.calUrl||"")}" placeholder="https://script.google.com/macros/s/.../exec"></label>
+    <p class="small muted">Once this is filled in, each official's first crew confirmation includes his personal calendar link. Leave it blank until the calendar script is set up.</p>
     <div class="lbl">Text wording</div>
-    <p class="small muted">Words in {braces} are filled in for you: {ad}, {school}, {team}, {date} (Tuesday, December 8), {short} (December 8), {time}, {list}, {count}, {dates}, {name}, {crew}, {left}, {partners}.</p>
+    <p class="small muted">Words in {braces} are filled in for you: {ad}, {school}, {team}, {date} (Tuesday, December 8), {short} (December 8), {time}, {list}, {count}, {dates}, {name}, {crew}, {left}, {partners}, {calendar} (his calendar link, only the first time).</p>
     ${Object.keys(K.DEFAULTS.tpl).map(k=>`<label><span class="lbl">${esc(K.TPL_LABELS[k])}</span><textarea id="ts-t-${k}">${esc(c.tpl[k])}</textarea></label>`).join("")}
     <div class="row"><button class="btn primary" id="ts-save">Save</button><button class="btn" id="ts-reset">Put back the original wording</button></div><p class="err" id="ts-err"></p></div>`;
-  const read=()=>{ const tpl={}; Object.keys(K.DEFAULTS.tpl).forEach(k=>tpl[k]=$("ts-t-"+k).value); return {adName:$("ts-ad").value.trim(),school:$("ts-sch").value.trim()||"Sandoval",waveSize:Math.max(1,+$("ts-wave").value||3),waveMins:Math.max(1,+$("ts-mins").value||15),startHour:+$("ts-sh").value,endHour:+$("ts-eh").value,tpl}; };
-  $("ts-save").onclick=()=>{ const v=read(); if(v.endHour<=v.startHour){ $("ts-err").textContent="Texting has to stop after it starts."; return; } act($("ts-save"),()=>E.saveCfg(v),"Saved"); };
+  const read=()=>{ const tpl={}; Object.keys(K.DEFAULTS.tpl).forEach(k=>tpl[k]=$("ts-t-"+k).value); return {adName:$("ts-ad").value.trim(),school:$("ts-sch").value.trim()||"Sandoval",waveSize:Math.max(1,+$("ts-wave").value||3),waveMins:Math.max(1,+$("ts-mins").value||15),startHour:+$("ts-sh").value,endHour:+$("ts-eh").value,recHour:+$("ts-rh").value,recDeadlineHrs:Math.max(1,+$("ts-rd").value||4),autoRefill:$("ts-ar").checked,calUrl:$("ts-cal").value.trim(),tpl}; };
+  $("ts-save").onclick=()=>{ const v=read(); $("ts-err").textContent=""; if(v.endHour<=v.startHour){ $("ts-err").textContent="Texting has to stop after it starts."; return; }
+    if(v.calUrl&&!/^https:\/\/script\.google\.com\/.+\/exec$/.test(v.calUrl)){ $("ts-err").textContent="The calendar link should start with https://script.google.com/ and end with /exec."; return; }
+    if(!v.tpl.confirm.includes("{calendar}")&&v.calUrl){ $("ts-err").textContent="Add {calendar} to the crew full confirmation so officials get their calendar link."; return; }
+    act($("ts-save"),async()=>{ await E.saveCfg(v); await ctx.fdb.collection("meta").doc("calFeed").set({url:v.calUrl}); },"Saved"); };
   $("ts-reset").onclick=()=>{ if(!confirm("Put every text back to the original wording?"))return; Object.keys(K.DEFAULTS.tpl).forEach(k=>$("ts-t-"+k).value=K.DEFAULTS.tpl[k]); ctx.toast("Click Save to keep it"); };
 }
 
@@ -237,7 +260,7 @@ function stop(){ unsubs.forEach(u=>{ try{u();}catch(_){} }); unsubs=[]; if(timer
 
 window.Texting={
   init(c){ ctx=c; if(!document.getElementById("txCss")){ const st=document.createElement("style"); st.id="txCss"; st.textContent=CSS; document.head.appendChild(st); }
-    E=K.createEngine({db:c.fdb,slotsFor:c.slotsFor}); watch(); },
+    E=K.createEngine({db:c.fdb,slotsFor:c.slotsFor,calPage:new URL("cal.html",location.href.split("?")[0].split("#")[0]).href}); watch(); },
   stop(){ stop(); E=null; },
   open(){ if(!E)return; shell(); ctx.showSheet("txSheet"); draw(); },
   gameLog
