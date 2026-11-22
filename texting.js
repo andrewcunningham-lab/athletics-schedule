@@ -19,19 +19,20 @@ const MONTHS=["January","February","March","April","May","June","July","August",
 
 const DEFAULTS={
   adName:"Andrew Cunningham", school:"Sandoval", waveSize:3, waveMins:15, startHour:7, endHour:21, testMode:true,
-  recHour:9, recDeadlineHrs:4, autoRefill:false, calUrl:"",
+  recHour:9, recDeadlineHrs:4, autoRefill:false, calUrl:"", timeChgMins:10,
   tpl:{
     season:"This is {ad}, AD at {school}. I am looking for officials for these {team} games at {school}:\n{list}\nReply with the numbers of the games you can work (for example: 1 3). Reply NO if you cannot work any of them. Thank you!",
     single:"This is {ad}, AD at {school}. I am looking for {count} official(s) for {team} on {date} at {time} at {school}. Please reply YES if you can work it or NO if you cannot. Thank you!",
     got:"Thank you! You are on for: {dates}. I will send a confirmation with your partners once each crew is full.",
     update:"Update for {short} at {school}: {name} has confirmed. Crew so far: {crew}. Still looking for {left} more official(s). Thank you!",
     confirm:"Confirming {date} at {time} at {school} — {team}, full pay. Your partners: {partners}.{calendar} Please reply if anything changes. Thank you!",
+    timechg:"Update for {short} at {school}: the {team} game {change}. Your partners are still {partners}. Please reply YES to confirm you can still work it. Thank you!",
     recon:"Confirming tomorrow, {date} at {time} at {school} — {team}. Your partners: {partners}. Please reply YES to confirm you are still good for tomorrow. Thank you!",
     sorry:"My apologies {name}, I just had someone grab the last spot on {dates}.",
     changed:"Update for {short} at {school}: the crew has changed. Your partners are now: {partners}. Same time, {time}, full pay. Thank you!"
   }
 };
-const TPL_LABELS={season:"Season list",single:"One game (YES/NO)",got:"Thank-you after picking games",update:"Crew update (one game, not full yet)",confirm:"Crew full confirmation",sorry:"Apology (spot taken)",changed:"Crew changed (after a drop is refilled)",recon:"Day-before check"};
+const TPL_LABELS={season:"Season list",single:"One game (YES/NO)",got:"Thank-you after picking games",update:"Crew update (one game, not full yet)",confirm:"Crew full confirmation",sorry:"Apology (spot taken)",changed:"Crew changed (after a drop is refilled)",recon:"Day-before check",timechg:"Game time or date changed"};
 
 // ---------- pure helpers ----------
 function normPhone(s){ let d=String(s||"").replace(/\D/g,""); if(d.length===11&&d[0]==="1")d=d.slice(1); return d.length===10?d:""; }
@@ -178,6 +179,7 @@ function createEngine(opt){
       if(!due){ const a=await asks().where("runId","==",d.id).get(); due=!a.docs.some(x=>x.data().status==="pending"); }
       if(due)sent+=await sendWave(d.id,true);
     }
+    if(inHours)sent+=await processTimeChanges(false);
     if(inHours&&h>=+c.recHour)sent+=await sendDayBefore(tomorrowIso());
     await checkSilent();
     return sent;
@@ -225,7 +227,7 @@ function createEngine(opt){
     const c=await getCfg(), rm=await rosterMap();
     const s=await asks().where("items","array-contains-any",gameIds.slice(0,30)).get();
     for(const d of s.docs){
-      const a=d.data(); if(d.id===exceptAskId||a.kind==="recon"||!["pending","ambiguous"].includes(a.status))continue;
+      const a=d.data(); if(d.id===exceptAskId||(a.kind!=="season"&&a.kind!=="single")||!["pending","ambiguous"].includes(a.status))continue;
       const hit=a.items.filter(id=>gameIds.includes(id)&&!(a.apologized||[]).includes(id)); if(!hit.length)continue;
       const st=await loadState(a.items); const r=rm[a.refId];
       if(r)await send(r,fill(c.tpl.sorry,vars(c,{name:a.name,dates:andList(hit.map(id=>tinyDate(st.games[id].date)))})),{runId:a.runId,askId:d.id,gameIds:hit});
@@ -276,11 +278,17 @@ function createEngine(opt){
       return done("Opted out. No more texts will go to this number.");
     }
     const s=await asks().where("refId","==",r.id).get(); const week=7*864e5;
-    const open=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(a=>["pending","ambiguous"].includes(a.status)||(a.kind==="recon"&&a.status==="silent")||(a.kind!=="recon"&&a.status==="closed"&&now()-a.sentAt<week)).sort((a,b)=>b.sentAt-a.sentAt);
+    const open=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(a=>["pending","ambiguous"].includes(a.status)||(isCheck(a)&&a.status==="silent")||(!isCheck(a)&&a.status==="closed"&&now()-a.sentAt<week)).sort((a,b)=>b.sentAt-a.sentAt);
     let target=null;
     // A live request wins over an old one he was already told was filled; an old one only counts if it's the only one (a late reply).
     const one=c=>{ const live=c.filter(a=>a.status!=="closed"); return live.length===1?live[0]:(!live.length&&c.length===1?c[0]:null); };
-    if(pr.type==="yes")target=one(open.filter(a=>a.kind==="single"||a.kind==="recon"));
+    // YES to several crew checks on the same game (a day-before check and a time-change text) answers all of them.
+    const checks=open.filter(a=>isCheck(a)&&a.status!=="closed");
+    if((pr.type==="yes"||pr.type==="no")&&checks.length>1&&open.filter(a=>a.status!=="closed").length===checks.length&&checks.every(a=>a.items[0]===checks[0].items[0])){
+      let last; for(const a of checks)last=await applyCheck(a,pr.type==="yes",body);
+      return done(last.summary,{askId:checks[0].id,gameIds:checks[0].items});
+    }
+    if(pr.type==="yes")target=one(open.filter(a=>a.kind==="single"||isCheck(a)));
     else if(pr.type==="nums"){ const t=one(open.filter(a=>a.kind==="season")); if(t&&pr.nums.every(n=>n>=1&&n<=t.items.length))target=t; }
     else if(pr.type==="no")target=one(open);
     if(!target){
@@ -292,7 +300,7 @@ function createEngine(opt){
       return res;
     }
     let out;
-    if(target.kind==="recon")out=await applyRecon(target.id,pr.type==="yes");
+    if(isCheck(target))out=await applyCheck(target,pr.type==="yes",body);
     else if(pr.type==="no")out=await applyNo(target.id);
     else out=await applyClaim(target.id,pr.type==="yes"?[target.items[0]]:pr.nums.map(n=>target.items[n-1]));
     await maybeNextWave(target.runId);
@@ -310,9 +318,61 @@ function createEngine(opt){
     if(!removed)throw new Error(slotName+" isn't on that crew.");
     const rm=await rosterMap(); const rr=(removed.refId&&rm[removed.refId])||Object.values(rm).find(y=>sameName(y.name,removed.name));
     const s=await asks().where("items","array-contains",gameId).get();
-    for(const d of s.docs){ const a=d.data(); if(rr&&a.refId===rr.id)await d.ref.update(Object.assign({claimed:(a.claimed||[]).filter(x=>x!==gameId),declined:[...new Set((a.declined||[]).concat([gameId]))]},a.kind==="recon"&&a.status!=="answered"?{status:"closed"}:{})); }
+    for(const d of s.docs){ const a=d.data(); if(rr&&a.refId===rr.id)await d.ref.update(Object.assign({claimed:(a.claimed||[]).filter(x=>x!==gameId),declined:[...new Set((a.declined||[]).concat([gameId]))]},isCheck(a)&&a.status!=="answered"?{status:"closed"}:{})); }
     await log({dir:"note",phone:"",refId:rr?rr.id:null,name:removed.name,body:"Removed from the crew for "+tinyDate(g.date)+" "+g.team+(note?" ("+note+")":"")+". Re-running the list for the open spot.",gameIds:[gameId]});
     return startRun({kind:"single",gameIds:[gameId],excluded:rr?[rr.id]:[],refill:{gameId,removed:removed.name}});
+  }
+
+  function isCheck(a){ return a&&(a.kind==="recon"||a.kind==="timechg"); }
+  async function applyCheck(a,yes,said){
+    if(a.kind==="recon")return applyRecon(a.id,yes);
+    const ref=asks().doc(a.id), gid=a.items[0];
+    if(yes){
+      await ref.update({status:"answered",answeredAt:now(),claimed:[gid]});
+      await db.runTransaction(async t=>{ const r=C("refAssign").doc(gid); const s=await t.get(r); const d=s.data()||{}; const sl=(d.slots||[]).map(x=>x&&x.name&&((x.refId&&x.refId===a.refId)||sameName(x.name,a.name))?Object.assign({},x,{confirmed:true}):x); t.set(r,Object.assign({},d,{slots:sl})); });
+      return {summary:"Confirmed the new time"};
+    }
+    await ref.update({status:"answered",answeredAt:now(),declined:[gid]});
+    await addInbox({type:"timeno",refId:a.refId,name:a.name,phone:a.phone,body:said||"NO",askIds:[a.id],note:"Can't work the new time."});
+    return {summary:"Said no to the new time. Sent to the inbox."};
+  }
+
+  // ----- time/date changes: queued, then sent after a wait so an accidental edit can be fixed first -----
+  function changeText(o,g){
+    const dChg=o.date!==g.date, tChg=(o.time||"")!==(g.time||"");
+    if(dChg&&tChg)return "has moved from "+longDate(o.date)+" at "+(o.time||"TBA")+" to "+longDate(g.date)+" at "+(g.time||"TBA");
+    if(dChg)return "has moved from "+longDate(o.date)+" to "+longDate(g.date);
+    return "time has changed from "+(o.time||"TBA")+" to "+(g.time||"TBA");
+  }
+  async function crewToText(gameId){ const rm=await rosterMap(); const a=await C("refAssign").doc(gameId).get(); return crewPeople((a.exists&&a.data().slots)||[],rm); }
+  async function timeChangePreview(gameId,old){
+    const c=await getCfg(); const g=(await C("games").doc(gameId).get()).data(); const people=await crewToText(gameId);
+    const p=people.find(x=>x.r&&normPhone(x.r.phone))||people[0];
+    const body=p?fill(c.tpl.timechg,vars(c,{short:shortMD(old.date),team:g.team,change:changeText(old,g),partners:andList(people.filter(q=>q!==p).map(q=>q.name))||"none yet"})):"";
+    return {body,textable:people.filter(x=>x.r&&normPhone(x.r.phone)&&!x.r.optedOut).map(x=>x.name),untextable:people.filter(x=>!(x.r&&normPhone(x.r.phone))||x.r.optedOut).map(x=>x.name)};
+  }
+  async function queueTimeChange(gameId,old){
+    const c=await getCfg(); const id="tc_"+gameId; const ref=runs().doc(id); const ex=await ref.get();
+    const keepOld=ex.exists&&ex.data().status==="queued"?ex.data().old:{date:old.date,time:old.time||""};
+    await ref.set({kind:"timechange",gameId,old:keepOld,status:"queued",createdAt:now(),sendAt:now()+(+c.timeChgMins||10)*60000,gameIds:[],queue:[]});
+    return now()+(+c.timeChgMins||10)*60000;
+  }
+  async function cancelTimeChange(gameId){ const ref=runs().doc("tc_"+gameId); const s=await ref.get(); if(s.exists&&s.data().status==="queued")await ref.update({status:"cancelled",cancelledAt:now()}); }
+  async function processTimeChanges(force){
+    const s=await runs().where("status","==","queued").get(); let n=0;
+    for(const d of s.docs){ const q=d.data(); if(q.kind!=="timechange"||(!force&&now()<q.sendAt))continue;
+      const gs=await C("games").doc(q.gameId).get(); const g=gs.exists?gs.data():null;
+      if(!g||g.cancelled||(g.date===q.old.date&&(g.time||"")===(q.old.time||""))){ await d.ref.update({status:"cancelled",cancelledAt:now(),note:!g?"Game deleted":g.cancelled?"Game cancelled":"Changed back before it went out"}); continue; }
+      const c=await getCfg(); const people=await crewToText(q.gameId);
+      const prior=(await asks().where("items","array-contains",q.gameId).get()).docs; for(const x of prior){ const a=x.data(); if(a.kind==="timechg"&&["pending","ambiguous","silent"].includes(a.status))await x.ref.update({status:"closed"}); }
+      for(const p of people){ if(!p.r)continue;
+        const ar=asks().doc();
+        await ar.set({runId:null,kind:"timechg",team:g.team,refId:p.r.id,name:p.r.name,phone:normPhone(p.r.phone),items:[q.gameId],sentAt:now(),status:"pending",claimed:[],declined:[],apologized:[]});
+        const body=fill(c.tpl.timechg,vars(c,{short:shortMD(q.old.date),team:g.team,change:changeText(q.old,g),partners:andList(people.filter(x=>x!==p).map(x=>x.name))||"none yet",time:g.time||"TBA",date:longDate(g.date)}));
+        if(await send(p.r,body,{askId:ar.id,gameIds:[q.gameId]}))n++; else await ar.delete(); }
+      await d.ref.update({status:"sent",sentAt:now(),sentTo:n});
+    }
+    return n;
   }
 
   // ----- day-before checks -----
@@ -325,7 +385,7 @@ function createEngine(opt){
       const all=(await asks().where("items","array-contains",g.id).get()).docs.map(d=>d.data());
       const prior=all.filter(x=>x.kind==="recon");
       // someone who just took the spot in the last day (a late replacement) already got a confirmation; no need to check again
-      const fresh=all.filter(x=>x.kind!=="recon"&&(x.claimed||[]).includes(g.id)&&now()-(x.answeredAt||0)<864e5).map(x=>x.refId);
+      const fresh=all.filter(x=>(x.kind==="season"||x.kind==="single")&&(x.claimed||[]).includes(g.id)&&now()-(x.answeredAt||0)<864e5).map(x=>x.refId);
       for(const p of people){
         if(!p.r||prior.some(x=>x.refId===p.r.id)||fresh.includes(p.r.id))continue;
         const partners=andList(people.filter(q=>q!==p).map(q=>q.name))||"none";
@@ -351,8 +411,9 @@ function createEngine(opt){
   async function checkSilent(){
     const c=await getCfg(); const hrs=+c.recDeadlineHrs||4;
     const s=await asks().where("status","==","pending").get();
-    for(const d of s.docs){ const a=d.data(); if(a.kind!=="recon"||now()<a.sentAt+hrs*3600e3)continue;
+    for(const d of s.docs){ const a=d.data(); if(!isCheck(a)||now()<a.sentAt+hrs*3600e3)continue;
       await d.ref.update({status:"silent"});
+      if(a.kind==="timechg"){ await addInbox({type:"silent",refId:a.refId,name:a.name,phone:a.phone,body:"(no reply)",askIds:[d.id],note:"No reply to the time-change text in "+hrs+" hours. At risk."}); continue; }
       if(c.autoRefill){ await dropFromCrew(a.items[0],a.name,"no reply to the day-before check");
         await addInbox({type:"silent",refId:a.refId,name:a.name,phone:a.phone,body:"(no reply)",askIds:[d.id],note:"No reply in "+hrs+" hours. Released automatically and re-running the list.",auto:true}); }
       else await addInbox({type:"silent",refId:a.refId,name:a.name,phone:a.phone,body:"(no reply)",askIds:[d.id],note:"No reply to the day-before check in "+hrs+" hours. At risk."});
@@ -362,7 +423,7 @@ function createEngine(opt){
 
   async function resolveInbox(id,resolution){ await inboxC().doc(id).update({status:"resolved",resolution,resolvedAt:now()}); }
 
-  return {getCfg,saveCfg,startRun,sendWave,tick,inbound,applyClaim,applyNo,applyRecon,sendDayBefore,checkSilent,tomorrowIso,newToken,dropFromCrew,resolveInbox,loadState,roster,
+  return {getCfg,saveCfg,startRun,sendWave,tick,inbound,applyClaim,applyNo,applyRecon,applyCheck,timeChangePreview,queueTimeChange,cancelTimeChange,processTimeChanges,sendDayBefore,checkSilent,tomorrowIso,newToken,dropFromCrew,resolveInbox,loadState,roster,
     setRun:(id,o)=>runs().doc(id).update(o), clearOptOut:refId=>refsC().doc(refId).update({optedOut:false}), optOut:refId=>refsC().doc(refId).update({optedOut:true,optedOutAt:now()}),
     markAskHandled:id=>asks().doc(id).update({status:"answered",answeredAt:now()})};
 }

@@ -1081,6 +1081,7 @@ $("form").addEventListener("submit",async e=>{
       if(n)await bt.commit();
     }
     if(canEdit)await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}].concat(asgBefore?[asgBefore]:[],suBefore)); toast(editingId?"Game saved":"Game added"); closeSheet();
+    if(canEdit&&old&&g.ha==="H"&&!g.cancelled&&(old.date!==g.date||(old.time||"")!==(g.time||""))&&window.Texting)Texting.onGameTimeChange(ref.id,{date:old.date,time:old.time||""});
   }catch(err){ $("ferr").textContent=denied(err)?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
   $("saveBtn").disabled=false;
 });

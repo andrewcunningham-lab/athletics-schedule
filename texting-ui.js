@@ -34,6 +34,10 @@ const CSS=`
 .txpick input{flex:none}
 #txSheet textarea{width:100%;min-height:84px;font:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
 .txbadge{display:inline-block;min-width:18px;padding:0 5px;border-radius:99px;background:var(--scarlet);color:#fff;font-size:11px;font-weight:700;margin-left:4px;text-align:center}
+.txmodal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px}
+.txmodal .box{background:var(--surface);color:var(--ink);border-radius:12px;max-width:460px;width:100%;padding:16px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+.txmodal h4{margin:0 0 8px;font-size:17px}
+.txmodal .btn{width:100%;margin-top:8px;padding:10px}
 .rrow2{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--muted);align-items:center}
 .rrow2 label{display:inline-flex;gap:4px;align-items:center;cursor:pointer}
 .rrow2 .oo{font-weight:700;color:var(--scarlet)}
@@ -106,6 +110,7 @@ async function drawSend(){
 
 // ---------- Running ----------
 function askStatus(a){
+  if(a.kind==="timechg")return a.status==="pending"?"waiting for YES to the new time":a.status==="silent"?"NO REPLY to the new time — at risk":a.status==="ambiguous"?"unclear reply (in inbox)":a.status==="closed"?"replaced by a newer change":(a.claimed||[]).length?"confirmed the new time":"said no to the new time (in inbox)";
   if(a.kind==="recon")return a.status==="pending"?"waiting for YES":a.status==="silent"?"NO REPLY — at risk":a.status==="ambiguous"?"unclear reply (in inbox)":a.status==="closed"?"removed from crew":(a.claimed||[]).length?"confirmed for tomorrow":"said no — replacement started";
   if(a.status==="pending")return "no reply yet";
   if(a.status==="ambiguous")return "unclear reply (in inbox)";
@@ -114,14 +119,19 @@ function askStatus(a){
   return "said no";
 }
 async function drawRuns(){
-  const B=$("txBody"); const list=runsL.slice().sort((a,b)=>(a.status==="done")-(b.status==="done")||b.createdAt-a.createdAt);
-  const rec=asksL.filter(a=>a.kind==="recon"&&Date.now()-a.sentAt<3*864e5).sort((a,b)=>b.sentAt-a.sentAt);
+  const B=$("txBody"); const list=runsL.filter(r=>r.kind!=="timechange").sort((a,b)=>(a.status==="done")-(b.status==="done")||b.createdAt-a.createdAt);
+  const tcs=runsL.filter(r=>r.kind==="timechange"&&(r.status==="queued"||Date.now()-r.createdAt<864e5)).sort((a,b)=>b.createdAt-a.createdAt);
+  const tcIds=tcs.map(r=>r.gameId).filter(id=>!gamesCache[id]); if(tcIds.length){ try{ Object.assign(gamesCache,(await E.loadState(tcIds)).games); }catch(_){} }
+  const tcHtml=tcs.length?`<div class="txcard"><h4>Time-change texts</h4>${tcs.map(r=>{ const g=gamesCache[r.gameId]||{};
+    const what=esc((g.team||"")+" · was "+K.tinyDate(r.old.date)+" "+(r.old.time||"TBA")+", now "+(g.date?K.tinyDate(g.date):"")+" "+(g.time||"TBA"));
+    return `<div class="txasks" style="margin-top:4px"><b>${what}</b><br>${r.status==="queued"?`Going out about ${fmtT(r.sendAt)}. <button class="btn" style="padding:2px 8px;font-size:12px" data-tccancel="${esc(r.gameId)}">Cancel</button> <button class="btn" style="padding:2px 8px;font-size:12px" data-tcnow="1">Send now</button>`:r.status==="sent"?"Sent "+fmtT(r.sentAt)+" to "+r.sentTo+" official"+(r.sentTo===1?"":"s"):"Cancelled"+(r.note?" — "+esc(r.note.toLowerCase()):"")}</div>`; }).join("")}</div>`:"";
+  const rec=asksL.filter(a=>(a.kind==="recon"||a.kind==="timechg")&&Date.now()-a.sentAt<3*864e5).sort((a,b)=>b.sentAt-a.sentAt);
   const recIds=[...new Set(rec.flatMap(a=>a.items))].filter(id=>!gamesCache[id]); if(recIds.length){ try{ Object.assign(gamesCache,(await E.loadState(recIds)).games); }catch(_){} }
-  const recHtml=rec.length?`<div class="txcard"><h4>Day-before checks</h4>${rec.map(a=>`<div class="txasks" style="margin-top:3px"><b>${esc(a.name)}</b> · ${esc(gLabel(a.items[0]))} ${esc((gamesCache[a.items[0]]||{}).team||"")} — ${esc(askStatus(a))}</div>`).join("")}</div>`:"";
-  if(!list.length){ B.innerHTML=recHtml+'<p class="small muted">Nothing running. Start one on the Send tab.</p>'; return; }
+  const recHtml=rec.length?`<div class="txcard"><h4>Crew checks</h4>${rec.map(a=>`<div class="txasks" style="margin-top:3px"><b>${esc(a.name)}</b> · ${a.kind==="recon"?"day-before":"new time"} · ${esc(gLabel(a.items[0]))} ${esc((gamesCache[a.items[0]]||{}).team||"")} — ${esc(askStatus(a))}</div>`).join("")}</div>`:"";
+  if(!list.length){ B.innerHTML=tcHtml+recHtml+'<p class="small muted">Nothing running. Start one on the Send tab.</p>'; bindRuns(B); return; }
   const need=[...new Set(list.flatMap(r=>r.gameIds))].filter(id=>!gamesCache[id]||!gamesCache[id]._slots);
   if(need.length){ try{ const st=await E.loadState(need); need.forEach(id=>{ if(st.games[id])gamesCache[id]=Object.assign(gamesCache[id]||{},st.games[id],{_slots:st.slots[id]}); }); }catch(_){} }
-  B.innerHTML=recHtml+`<p class="small muted">Waves go out only while this page is open somewhere (on your phone or computer) during texting hours. Tap “Send next wave now” to skip the wait.</p>`+list.map(r=>{
+  B.innerHTML=tcHtml+recHtml+`<p class="small muted">Waves go out only while this page is open somewhere (on your phone or computer) during texting hours. Tap “Send next wave now” to skip the wait.</p>`+list.map(r=>{
     const lbl=r.status==="running"?'<span class="txst run">Running</span>':r.status==="paused"?'<span class="txst pause">Paused</span>':r.status==="stopped"?'<span class="txst done">Stopped</span>':'<span class="txst done">Done — crews full</span>';
     const texted=new Set(asksL.filter(a=>a.runId===r.id).map(a=>a.refId)).size;
     const wave=r.status==="running"?(r.nextIdx>=r.queue.length?"Everyone on the list has been texted.":"Next wave about "+fmtT(r.nextWaveAt)+"."):"";
@@ -135,7 +145,12 @@ async function drawRuns(){
       ${games}
       ${as.length?`<div class="txasks">${as.map(a=>`<div><b>${esc(a.name)}</b> — ${esc(askStatus(a))}</div>`).join("")}</div>`:""}
       ${btns?`<div class="txrow">${btns}</div>`:""}</div>`; }).join("");
-  B.onclick=async e=>{ const w=e.target.closest("[data-wave]"), s=e.target.closest("[data-set]"), d=e.target.closest("[data-drop]");
+  bindRuns(B);
+}
+function bindRuns(B){
+  B.onclick=async e=>{ const w=e.target.closest("[data-wave]"), s=e.target.closest("[data-set]"), d=e.target.closest("[data-drop]"), tc=e.target.closest("[data-tccancel]"), tn=e.target.closest("[data-tcnow]");
+    if(tc){ if(!confirm("Cancel this time-change text? The crew won't be told."))return; return act(tc,()=>E.cancelTimeChange(tc.dataset.tccancel),"Cancelled"); }
+    if(tn)return act(tn,()=>E.processTimeChanges(true),n=>n?"Sent to "+n+" official"+(n===1?"":"s"):"Nothing sent (the game may have been changed back)");
     if(w)await act(w,()=>E.sendWave(w.dataset.wave,true),n=>n?"Texted "+n+" more":"Nobody left to text, or every crew is full");
     if(s){ if(s.dataset.v==="stopped"&&!confirm("Stop this? No more waves will go out. Replies that come in are still handled."))return; await act(s,()=>E.setRun(s.dataset.set,{status:s.dataset.v}),s.dataset.v==="paused"?"Paused":s.dataset.v==="running"?"Resumed":"Stopped"); }
     if(d){ const g=gamesCache[d.dataset.drop]; if(!confirm("Remove "+d.dataset.name+" from the crew for "+(g?ctx.fmtDate(g.date):"this game")+"? The app will start texting the list for a replacement."))return;
@@ -143,7 +158,7 @@ async function drawRuns(){
 }
 
 // ---------- Inbox ----------
-const TYPE={unclear:"Unclear reply",reply:"Reply with no open request",optout:"Opted out",unknown:"Unknown number",silent:"No reply to day-before check"};
+const TYPE={timeno:"Can't work the new time",unclear:"Unclear reply",reply:"Reply with no open request",optout:"Opted out",unknown:"Unknown number",silent:"No reply to day-before check"};
 async function drawInbox(){
   const B=$("txBody");
   if(!inboxL.length){ B.innerHTML='<p class="small muted">Nothing needs you right now.</p>'; return; }
@@ -155,13 +170,16 @@ async function drawInbox(){
     let acts="";
     if(it.type==="unclear"){
       acts=(it.askIds||[]).map(aid=>{ const a=askMap[aid]; if(!a)return ""; const head=`<div class="small" style="margin-top:6px"><b>${a.kind==="season"?"Season list":"One game"} · ${esc(a.team)}</b> (sent ${fmtWhen(a.sentAt)})</div>`;
-        if(a.kind==="recon")return `<div class="small" style="margin-top:6px"><b>Day-before check · ${esc(gLabel(a.items[0]))} ${esc(a.team)}</b></div><div class="txrow"><button class="btn" data-ryes="${aid}" data-i="${it.id}">Count as yes</button><button class="btn" data-rno="${aid}" data-i="${it.id}">Count as no (drop and refill)</button></div>`;
+        if(a.kind==="recon"||a.kind==="timechg")return `<div class="small" style="margin-top:6px"><b>${a.kind==="recon"?"Day-before check":"New time"} · ${esc(gLabel(a.items[0]))} ${esc(a.team)}</b></div><div class="txrow"><button class="btn" data-ryes="${aid}" data-i="${it.id}">Count as yes</button><button class="btn" data-rno="${aid}" data-i="${it.id}">Count as no (drop and refill)</button></div>`;
         if(a.kind==="single")return head+`<div class="txrow"><button class="btn" data-yes="${aid}" data-i="${it.id}">Count as yes</button><button class="btn" data-no="${aid}" data-i="${it.id}">Count as no</button></div>`;
         return head+a.items.map((g,n)=>`<label class="txpick"><input type="checkbox" data-pick="${aid}" value="${esc(g)}"> ${n+1}) ${esc(gLabel(g))}</label>`).join("")+`<div class="txrow"><button class="btn" data-save="${aid}" data-i="${it.id}">Put him on the checked games</button><button class="btn" data-no="${aid}" data-i="${it.id}">Count as no</button></div>`; }).join("")
         +`<div class="txrow"><button class="btn" data-manual="${it.id}">I'll reply myself</button><button class="btn" data-oo="${it.refId}" data-i="${it.id}">Mark opted out</button></div>`;
     } else if(it.type==="reply"){
       const crews=upcoming.filter(g=>(g._slots||[]).some(x=>x&&x.name&&String(x.name).toLowerCase()===String(it.name).toLowerCase()));
       acts=`<div class="txrow">${crews.map(g=>`<button class="btn" data-drop="${esc(g.id)}" data-name="${esc(it.name)}" data-i="${it.id}">Drop from ${esc(K.tinyDate(g.date))} crew</button>`).join("")}<button class="btn" data-ok="${it.id}">Done</button><button class="btn" data-oo="${it.refId}" data-i="${it.id}">Mark opted out</button></div>`;
+    } else if(it.type==="timeno"){
+      const aid=(it.askIds||[])[0], a=askMap[aid];
+      acts=a?`<div class="small" style="margin-top:6px"><b>${esc(gLabel(a.items[0]))} ${esc(a.team)}</b> (new time)</div><div class="txrow"><button class="btn" data-rno="${aid}" data-i="${it.id}">Drop and find a replacement</button><button class="btn" data-ok="${it.id}">Leave him on</button></div>`:`<div class="txrow"><button class="btn" data-ok="${it.id}">Done</button></div>`;
     } else if(it.type==="silent"){
       const aid=(it.askIds||[])[0], a=askMap[aid];
       acts=a?`<div class="small" style="margin-top:6px"><b>${esc(gLabel(a.items[0]))} ${esc(a.team)}</b></div>`+(it.auto?`<div class="txrow"><button class="btn" data-ok="${it.id}">OK</button></div>`:`<div class="txrow"><button class="btn" data-ryes="${aid}" data-i="${it.id}">He's good (count as yes)</button><button class="btn" data-rno="${aid}" data-i="${it.id}">Drop and find a replacement</button><button class="btn" data-ok="${it.id}">Leave him on</button></div>`):`<div class="txrow"><button class="btn" data-ok="${it.id}">Done</button></div>`;
@@ -172,8 +190,9 @@ async function drawInbox(){
   B.onclick=async e=>{ const t=e.target.closest("button"); if(!t)return; const d=t.dataset; const res=r=>E.resolveInbox(d.i,r);
     if(d.yes)return act(t,async()=>{ const r=await E.applyClaim(d.yes,[ (await ctx.fdb.collection("txAsks").doc(d.yes).get()).data().items[0] ]); await res(r.full.length?"Counted as yes, but the crew was already full (apology sent)":"Counted as yes"); return r; },r=>r.full.length?"Crew was already full — he got the apology text":"He's on the crew");
     if(d.no)return act(t,async()=>{ await E.applyNo(d.no); await res("Counted as no"); },"Counted as no");
-    if(d.ryes)return act(t,async()=>{ await E.applyRecon(d.ryes,true); await res("Counted as yes for tomorrow"); },"Re-confirmed");
-    if(d.rno){ if(!confirm("Remove him from tomorrow's crew and start texting for a replacement?"))return; return act(t,async()=>{ await E.applyRecon(d.rno,false); await res("Dropped; re-running the list"); },"Removed. Looking for a replacement."); }
+    if(d.ryes)return act(t,async()=>{ await E.applyCheck(askMap[d.ryes],true); await res("Counted as yes"); },"Confirmed");
+    if(d.rno){ const a=askMap[d.rno]; if(!confirm("Remove "+a.name+" from this crew and start texting for a replacement?"))return;
+      return act(t,async()=>{ if(a.kind==="recon")await E.applyRecon(a.id,false); else { await E.markAskHandled(a.id); await E.dropFromCrew(a.items[0],a.name,"can't work the new time"); } await res("Dropped; re-running the list"); },"Removed. Looking for a replacement."); }
     if(d.save){ const ids=[...B.querySelectorAll(`input[data-pick="${d.save}"]:checked`)].map(x=>x.value); if(!ids.length){ ctx.toast("Check at least one game, or tap Count as no."); return; }
       return act(t,async()=>{ const r=await E.applyClaim(d.save,ids); await res(r.summary); return r; },r=>r.summary); }
     if(d.manual)return act(t,async()=>{ const it=inboxL.find(x=>x.id===d.manual); for(const a of (it.askIds||[]))await E.markAskHandled(a); await res("AD replied himself"); },"Marked handled");
@@ -224,14 +243,16 @@ async function drawSet(){
     <div class="two"><label><span class="lbl">Send at</span><select id="ts-rh">${hrs.map(h=>`<option value="${h}"${h===+c.recHour?" selected":""}>${hl(h)}</option>`).join("")}</select></label><label><span class="lbl">Hours to reply</span><input type="number" min="1" max="24" id="ts-rd" value="${esc(c.recDeadlineHrs)}"></label></div>
     <label class="chk"><input type="checkbox" id="ts-ar"${c.autoRefill?" checked":""}> If an official doesn't reply in time, drop him and find a replacement automatically</label>
     <p class="small muted">Off: a silent official is flagged in the Inbox as at risk, and you decide. On: he's released and the list is re-run on its own.</p>
+    <label><span class="lbl">Wait before texting a game time change (minutes)</span><input type="number" min="1" max="120" id="ts-tcm" value="${esc(c.timeChgMins)}"></label>
+    <p class="small muted">Gives you time to fix an accidental change. If the game goes back to its old time in that window, nothing is sent.</p>
     <div class="lbl">Officials' calendar</div>
     <label><span class="lbl">Calendar feed link (Google Apps Script web app URL)</span><input type="text" id="ts-cal" value="${esc(c.calUrl||"")}" placeholder="https://script.google.com/macros/s/.../exec"></label>
     <p class="small muted">Once this is filled in, each official's first crew confirmation includes his personal calendar link. Leave it blank until the calendar script is set up.</p>
     <div class="lbl">Text wording</div>
-    <p class="small muted">Words in {braces} are filled in for you: {ad}, {school}, {team}, {date} (Tuesday, December 8), {short} (December 8), {time}, {list}, {count}, {dates}, {name}, {crew}, {left}, {partners}, {calendar} (his calendar link, only the first time).</p>
+    <p class="small muted">Words in {braces} are filled in for you: {ad}, {school}, {team}, {date} (Tuesday, December 8), {short} (December 8), {time}, {list}, {count}, {dates}, {name}, {crew}, {left}, {partners}, {change} (what changed, e.g. "time has changed from 6:00 PM to 6:30 PM"), {calendar} (his calendar link, only the first time).</p>
     ${Object.keys(K.DEFAULTS.tpl).map(k=>`<label><span class="lbl">${esc(K.TPL_LABELS[k])}</span><textarea id="ts-t-${k}">${esc(c.tpl[k])}</textarea></label>`).join("")}
     <div class="row"><button class="btn primary" id="ts-save">Save</button><button class="btn" id="ts-reset">Put back the original wording</button></div><p class="err" id="ts-err"></p></div>`;
-  const read=()=>{ const tpl={}; Object.keys(K.DEFAULTS.tpl).forEach(k=>tpl[k]=$("ts-t-"+k).value); return {adName:$("ts-ad").value.trim(),school:$("ts-sch").value.trim()||"Sandoval",waveSize:Math.max(1,+$("ts-wave").value||3),waveMins:Math.max(1,+$("ts-mins").value||15),startHour:+$("ts-sh").value,endHour:+$("ts-eh").value,recHour:+$("ts-rh").value,recDeadlineHrs:Math.max(1,+$("ts-rd").value||4),autoRefill:$("ts-ar").checked,calUrl:$("ts-cal").value.trim(),tpl}; };
+  const read=()=>{ const tpl={}; Object.keys(K.DEFAULTS.tpl).forEach(k=>tpl[k]=$("ts-t-"+k).value); return {adName:$("ts-ad").value.trim(),school:$("ts-sch").value.trim()||"Sandoval",waveSize:Math.max(1,+$("ts-wave").value||3),waveMins:Math.max(1,+$("ts-mins").value||15),startHour:+$("ts-sh").value,endHour:+$("ts-eh").value,recHour:+$("ts-rh").value,recDeadlineHrs:Math.max(1,+$("ts-rd").value||4),autoRefill:$("ts-ar").checked,timeChgMins:Math.max(1,+$("ts-tcm").value||10),calUrl:$("ts-cal").value.trim(),tpl}; };
   $("ts-save").onclick=()=>{ const v=read(); $("ts-err").textContent=""; if(v.endHour<=v.startHour){ $("ts-err").textContent="Texting has to stop after it starts."; return; }
     if(v.calUrl&&!/^https:\/\/script\.google\.com\/.+\/exec$/.test(v.calUrl)){ $("ts-err").textContent="The calendar link should start with https://script.google.com/ and end with /exec."; return; }
     if(!v.tpl.confirm.includes("{calendar}")&&v.calUrl){ $("ts-err").textContent="Add {calendar} to the crew full confirmation so officials get their calendar link."; return; }
@@ -263,6 +284,29 @@ window.Texting={
     E=K.createEngine({db:c.fdb,slotsFor:c.slotsFor,calPage:new URL("cal.html",location.href.split("?")[0].split("#")[0]).href}); watch(); },
   stop(){ stop(); E=null; },
   open(){ if(!E)return; shell(); ctx.showSheet("txSheet"); draw(); },
+  // After a saved game's date or time changed: ask whether to text the crew. Nothing is texted unless the AD taps "Text the crew".
+  async onGameTimeChange(gameId,old){
+    if(!E)return;
+    try{
+      const q=await ctx.fdb.collection("txRuns").doc("tc_"+gameId).get(); const queued=q.exists&&q.data().status==="queued"?q.data():null;
+      const g=(await ctx.fdb.collection("games").doc(gameId).get()).data();
+      if(queued&&queued.old.date===g.date&&(queued.old.time||"")===(g.time||"")){ await E.cancelTimeChange(gameId); ctx.toast("Back to the original time, so the waiting time-change text was cancelled."); return; }
+      const from=queued?queued.old:old; const pv=await E.timeChangePreview(gameId,from);
+      if(!pv.textable.length)return;
+      const c=await E.getCfg(); const m=document.createElement("div"); m.className="txmodal";
+      m.innerHTML=`<div class="box" role="dialog" aria-label="Text the crew"><h4>Text the crew about the change?</h4>
+        <p class="small muted" style="margin:0 0 6px">Goes to ${esc(K.andList(pv.textable))}${pv.untextable.length?". Can't text "+esc(K.andList(pv.untextable))+" (no phone number or opted out), so tell them yourself":""}. Each one has to reply YES.</p>
+        <div class="txq">${esc(pv.body)}</div>
+        ${queued?'<p class="small muted">A time-change text for this game is already waiting. Texting updates it to the newest time; not texting cancels it.</p>':""}
+        <button class="btn primary" data-m="send">Text the crew (goes out in ${esc(c.timeChgMins)} minutes)</button>
+        <button class="btn" data-m="skip">Save without texting</button>
+        <p class="small muted" style="margin-top:8px">If this was a mistake, change it back within ${esc(c.timeChgMins)} minutes and nothing is sent. You can also cancel it on the Officials texting → Running tab.</p></div>`;
+      document.body.appendChild(m); m.querySelector("[data-m=send]").focus();
+      m.onclick=async e=>{ const b=e.target.closest("[data-m]"); if(!b)return; m.remove();
+        if(b.dataset.m==="send"){ const at=await E.queueTimeChange(gameId,from); ctx.toast("Crew will be texted about "+fmtT(at)+" unless it's changed back"); }
+        else if(queued){ await E.cancelTimeChange(gameId); ctx.toast("Saved. The waiting time-change text was cancelled."); } };
+    }catch(e){ console.error(e); }
+  },
   gameLog
 };
 })();
