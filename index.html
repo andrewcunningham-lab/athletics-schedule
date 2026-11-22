@@ -573,7 +573,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
   <h3 id="refTitle">Officials</h3>
   <div class="seg" role="group" aria-label="Officials view" style="align-self:flex-start;margin-bottom:10px"><button id="rt-need" aria-pressed="true">Needs officials</button><button id="rt-list" aria-pressed="false">Officials list</button></div>
   <div id="rp-need">
-    <p class="small muted">Upcoming home games that are missing an official or still have someone unconfirmed. Click a game to fill it in.</p>
+    <p class="small muted">Upcoming home games that still need officials, then full crews that aren't confirmed yet. Click a game to fill it in.</p>
     <div id="needList"></div>
   </div>
   <div id="rp-list" hidden>
@@ -581,7 +581,8 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
       <div class="two"><label><span class="lbl">Name</span><input type="text" id="o-name"></label><label><span class="lbl">Phone</span><input type="text" id="o-phone"></label></div>
       <label><span class="lbl">Email</span><input type="text" id="o-email"></label>
       <div class="row"><button class="btn primary" id="o-add">Add official</button><label class="btn" for="o-file">Import officials CSV</label><input type="file" id="o-file" accept=".csv,text/csv" hidden></div>
-      <p class="small muted">The officials CSV needs a <b>name</b> column. <b>phone</b> and <b>email</b> are optional.</p>
+      <p class="small muted">The officials CSV needs a <b>name</b> column. <b>phone</b>, <b>email</b>, and <b>sport</b> are optional. Someone listed more than once (same phone number or same name) becomes one entry with every sport checked. Importing again only adds sports; it never unchecks one.</p>
+      <p class="small" id="oinfo" style="margin:0"></p>
       <p class="err" id="oerr"></p>
     </div>
     <div id="refRoster"></div>
@@ -895,8 +896,8 @@ const rosterCol=()=>fdb.collection("refs");
 let asg={}, roster=[], unsubAsg=null, unsubRoster=null;
 const slotsFor=g=>/^HS\b.*basketball/i.test(g.team||"")?3:2;
 const needsRefs=g=>g.ha==="H"&&!g.cancelled&&g.team!=="Music";
-function refStatus(g){ const a=asg[g.id], n=slotsFor(g), sl=(a&&a.slots)||[]; const filled=sl.filter(x=>x&&x.name).length, conf=sl.filter(x=>x&&x.name&&x.confirmed).length; return {n,filled,conf,done:filled>=n&&conf>=n}; }
-function refLabel(g){ const r=refStatus(g); if(r.done)return "Officials set"; return "Officials "+r.filled+" of "+r.n+(r.filled>r.conf?" · "+(r.filled-r.conf)+" unconfirmed":""); }
+function refStatus(g){ const a=asg[g.id], n=slotsFor(g), sl=(a&&a.slots)||[]; const filled=sl.filter(x=>x&&x.name).length, conf=sl.filter(x=>x&&x.name&&x.confirmed).length; return {n,filled,conf,done:filled>=n,conf_ok:filled>=n&&conf>=n}; }
+function refLabel(g){ const r=refStatus(g); const u=r.filled-r.conf; if(r.done)return "Officials set"+(u>0?" · "+u+" unconfirmed":""); return "Officials "+r.filled+" of "+r.n+(u>0?" · "+u+" unconfirmed":""); }
 function watchRefs(){
   if(unsubAsg){unsubAsg();unsubAsg=null;} if(unsubRoster){unsubRoster();unsubRoster=null;}
   asg={}; roster=[];
@@ -1395,10 +1396,12 @@ async function loadNeeds(){
     const [gs,as]=await Promise.all([gamesCol().where("date",">=",todayIso).where("date","<=",to).get(), asgCol().where("date",">=",todayIso).where("date","<=",to).get()]);
     const A={}; as.docs.forEach(d=>A[d.id]=d.data());
     needGames=gs.docs.map(d=>Object.assign({id:d.id},d.data())).filter(needsRefs).sort(sortGames);
-    const rows=needGames.map(g=>{ const sl=(A[g.id]&&A[g.id].slots)||[]; const n=slotsFor(g); const f=sl.filter(x=>x&&x.name).length, c=sl.filter(x=>x&&x.name&&x.confirmed).length; if(f>=n&&c>=n)return "";
+    const rowFor=(want)=>needGames.map(g=>{ const sl=(A[g.id]&&A[g.id].slots)||[]; const n=slotsFor(g); const f=sl.filter(x=>x&&x.name).length, c=sl.filter(x=>x&&x.name&&x.confirmed).length; if(f>=n&&c>=n)return ""; if((f<n)!==(want==="missing"))return "";
       const st=f<n?(n-f)+" needed":(f-c)+" unconfirmed";
       return `<button class="nrow" data-nid="${esc(g.id)}"><span><b>${esc(fmtDate(g.date))}</b> · ${esc(g.time||"TBA")} · ${esc(g.team)} vs. ${esc(g.opp)}<small>${sl.filter(x=>x.name).map(x=>esc(x.name)+(x.confirmed?" (confirmed)":" (unconfirmed)")).join(", ")||"No officials yet"}</small></span><span class="nstat">${st}</span></button>`; }).join("");
-    $("needList").innerHTML=rows||'<p class="small muted">Every home game in the next 4 months has its officials set and confirmed.</p>';
+    const miss=rowFor("missing"), unc=rowFor("unconfirmed");
+    const rows=miss+(unc?'<p class="small muted" style="margin:14px 0 6px"><b>Full crews, not confirmed yet</b></p>'+unc:"");
+    $("needList").innerHTML=(miss?"":'<p class="small muted">Every home game in the next 4 months has a full crew.</p>')+rows;
     if(rows)$("needList").insertAdjacentHTML("afterbegin",'<p class="small muted">Showing the next 4 months.</p>');
     asgCache=A;
   }catch(e){ $("needList").innerHTML='<p class="err">Couldn\'t load games. Check your connection.</p>'; }
@@ -1418,14 +1421,33 @@ $("refRoster").addEventListener("click",async e=>{ const b=e.target.closest("[da
 $("o-add").onclick=async()=>{ const name=$("o-name").value.trim(); $("oerr").textContent=""; if(!name){ $("oerr").textContent="Type a name."; return; }
   if(roster.some(r=>String(r.name).toLowerCase()===name.toLowerCase())){ $("oerr").textContent=name+" is already on the list."; return; }
   try{ await rosterCol().add({name,phone:$("o-phone").value.trim(),email:$("o-email").value.trim()}); $("o-name").value=$("o-phone").value=$("o-email").value=""; toast("Added "+name); }catch(_){ $("oerr").textContent="Couldn't add. Check your connection."; } };
-$("o-file").addEventListener("change",async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f)return; $("oerr").textContent="";
-  try{ const rows=parseCSV(await f.text()); if(!rows.length)throw 0; const h=rows[0].map(x=>String(x).toLowerCase().replace(/[^a-z]/g,"")); const ni=h.indexOf("name"), pi=h.indexOf("phone"), ei=h.indexOf("email");
+$("o-file").addEventListener("change",async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f)return; $("oerr").textContent=""; $("oinfo").textContent="";
+  try{ const rows=parseCSV(await f.text()); if(!rows.length)throw 0; const h=rows[0].map(x=>String(x).toLowerCase().replace(/[^a-z]/g,"")); const ni=h.indexOf("name"), pi=h.indexOf("phone"), ei=h.indexOf("email"), si=h.indexOf("sport")>=0?h.indexOf("sport"):h.indexOf("sports");
     if(ni<0){ $("oerr").textContent="That file needs a name column."; return; }
-    const byName=new Map(roster.map(r=>[String(r.name).toLowerCase(),r])); const b=fdb.batch(); let added=0, updated=0;
-    rows.slice(1).forEach(r=>{ const name=String(r[ni]||"").trim(); if(!name)return; const phone=pi>=0?String(r[pi]||"").trim():"", email=ei>=0?String(r[ei]||"").trim():""; const ex=byName.get(name.toLowerCase());
-      if(ex){ const up={}; if(phone&&phone!==ex.phone)up.phone=phone; if(email&&email!==ex.email)up.email=email; if(Object.keys(up).length){ b.update(rosterCol().doc(ex.id),up); updated++; } }
-      else { b.set(rosterCol().doc(),{name,phone,email}); byName.set(name.toLowerCase(),{}); added++; } });
+    const digits=v=>{ let d=String(v||"").replace(/\D/g,""); if(d.length===11&&d[0]==="1")d=d.slice(1); return d.length===10?d:""; };
+    const teams=refSports(), tl=teams.map(t=>t.toLowerCase()), how=new Map(), unknown=new Set();
+    // A sport that exactly matches a team name checks that team. Otherwise it checks every team with that word in its name (e.g. "Basketball" -> all basketball teams), and the result lists what it matched.
+    const mapSport=v=>{ const k=v.trim().toLowerCase(); if(!k)return []; const ex=tl.indexOf(k); if(ex>=0)return [teams[ex]];
+      const words=k.split(/\s+/); const hit=teams.filter((t,i)=>words.every(w=>tl[i].split(/[^a-z0-9.]+/).includes(w)));
+      if(hit.length)how.set(v.trim(),hit); else unknown.add(v.trim()); return hit; };
+    const people=[]; // merged: one entry per person (same phone, or same name)
+    rows.slice(1).forEach(r=>{ const name=String(r[ni]||"").trim(); if(!name)return; const phone=pi>=0?String(r[pi]||"").trim():"", email=ei>=0?String(r[ei]||"").trim():"";
+      const sp=si>=0?String(r[si]||"").split(/[;,\/|]/).flatMap(mapSport):[];
+      const p=people.find(x=>(digits(phone)&&digits(x.phone)===digits(phone))||x.name.toLowerCase()===name.toLowerCase());
+      if(p){ if(!p.phone&&phone)p.phone=phone; if(!p.email&&email)p.email=email; sp.forEach(t=>{ if(!p.sports.includes(t))p.sports.push(t); }); p.rows++; }
+      else people.push({name,phone,email,sports:sp.slice(),rows:1}); });
+    const b=fdb.batch(); let added=0, updated=0, merged=0;
+    people.forEach(p=>{ if(p.rows>1)merged+=p.rows-1;
+      const ex=roster.find(x=>(digits(p.phone)&&digits(x.phone)===digits(p.phone)))||roster.find(x=>String(x.name).toLowerCase()===p.name.toLowerCase());
+      if(ex){ const up={}; if(p.phone&&p.phone!==ex.phone&&!(digits(p.phone)&&digits(p.phone)===digits(ex.phone)))up.phone=p.phone; if(p.email&&p.email!==ex.email)up.email=p.email;
+        if(p.sports.length){ const all=[...new Set((ex.sports||[]).concat(p.sports))]; if(all.length!==(ex.sports||[]).length)up.sports=all; }
+        if(Object.keys(up).length){ b.update(rosterCol().doc(ex.id),up); updated++; } }
+      else { b.set(rosterCol().doc(),Object.assign({name:p.name,phone:p.phone,email:p.email},p.sports.length?{sports:p.sports}:{})); added++; } });
     await b.commit(); toast(added+" added, "+updated+" updated");
+    const notes=[added+" added, "+updated+" updated"+(merged?", "+merged+" duplicate row"+(merged===1?"":"s")+" combined into one entry each":"")+"."];
+    how.forEach((t,v)=>notes.push("“"+v+"” checked: "+t.join(", ")+"."));
+    if(unknown.size)notes.push("Didn't match any team, so nothing was checked for: "+[...unknown].map(v=>"“"+v+"”").join(", ")+". Check those by hand below, or rename them to a team name and import again.");
+    $("oinfo").textContent=notes.join(" ");
   }catch(_){ $("oerr").textContent="Couldn't read that file. Save it as CSV and try again."; } });
 
 // ---- game confirmations ----
