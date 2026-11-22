@@ -23,16 +23,17 @@ const DEFAULTS={
   tpl:{
     season:"This is {ad}, AD at {school}. I am looking for officials for these {team} games at {school}:\n{list}\nReply with the numbers of the games you can work (for example: 1 3). Reply NO if you cannot work any of them. Thank you!",
     single:"This is {ad}, AD at {school}. I am looking for {count} official(s) for {team} on {date} at {time} at {school}. Please reply YES if you can work it or NO if you cannot. Thank you!",
-    got:"Thank you! You are on for: {dates}. I will send a confirmation with your partners once each crew is full.",
-    update:"Update for {short} at {school}: {name} has confirmed. Crew so far: {crew}. Still looking for {left} more official(s). Thank you!",
-    confirm:"Confirming {date} at {time} at {school} — {team}, full pay. Your partners: {partners}.{calendar} Please reply if anything changes. Thank you!",
+    got:"Thank you! You are on for: {dates}. I will send a confirmation with your partners once each crew is full.{calendar}",
+    update:"Update for {short} at {school}: {name} has confirmed. Crew so far: {crew}. Still looking for {left} more official(s). Thank you!{calendar}",
+    calNote:"Here is your Sandoval calendar link: {link}\n\nClick on it and it will add your games into your iCal. It stays current on its own — games added will appear, and games you are removed from will come off. No app or login needed.",
+    confirm:"Confirming {date} at {time} at {school} — {team}, full pay. Your partners: {partners}. Please reply if anything changes. Thank you!{calendar}",
     timechg:"Update for {short} at {school}: the {team} game {change}. Your partners are still {partners}. Please reply YES to confirm you can still work it. Thank you!",
     recon:"Confirming tomorrow, {date} at {time} at {school} — {team}. Your partners: {partners}. Please reply YES to confirm you are still good for tomorrow. Thank you!",
     sorry:"My apologies {name}, I just had someone grab the last spot on {dates}.",
     changed:"Update for {short} at {school}: the crew has changed. Your partners are now: {partners}. Same time, {time}, full pay. Thank you!"
   }
 };
-const TPL_LABELS={season:"Season list",single:"One game (YES/NO)",got:"Thank-you after picking games",update:"Crew update (one game, not full yet)",confirm:"Crew full confirmation",sorry:"Apology (spot taken)",changed:"Crew changed (after a drop is refilled)",recon:"Day-before check",timechg:"Game time or date changed"};
+const TPL_LABELS={season:"Season list",single:"One game (YES/NO)",got:"Thank-you after picking games",update:"Crew update (one game, not full yet)",confirm:"Crew full confirmation",sorry:"Apology (spot taken)",changed:"Crew changed (after a drop is refilled)",calNote:"Calendar link paragraph (added once, at the end of his first text after taking a game)",recon:"Day-before check",timechg:"Game time or date changed"};
 
 // ---------- pure helpers ----------
 function normPhone(s){ let d=String(s||"").replace(/\D/g,""); if(d.length===11&&d[0]==="1")d=d.slice(1); return d.length===10?d:""; }
@@ -83,7 +84,7 @@ function createEngine(opt){
     if(!c.calUrl||!calPage||!r||!r.id)return "";
     const s=await refsC().doc(r.id).get(); const d=s.exists?s.data():{}; if(d.calSent)return "";
     let t=d.calToken; if(!t){ t=newToken(); await refsC().doc(r.id).update({calToken:t}); }
-    return " Your games calendar: "+calPage+"?t="+t+" ";
+    return "\n\n"+fill(c.tpl.calNote,vars(c,{link:calPage+"?t="+t}));
   }
 
   async function log(e){ const ref=logC().doc(); await ref.set(Object.assign({at:now(),fake:true,gameIds:[],runId:null,askId:null,refId:null,result:""},e)); return ref; }
@@ -199,6 +200,12 @@ function createEngine(opt){
 
   function crewPeople(slots,rm){ return (slots||[]).filter(x=>x&&x.name).map(x=>{ const r=(x.refId&&rm[x.refId])||Object.values(rm).find(y=>sameName(y.name,x.name)); return {name:x.name,r}; }); }
 
+  // Fill {calendar} for this one official (his link the first time, blank after), send, and remember he has it.
+  async function sendCal(c,r,tplKey,v,meta){
+    const cal=await calendarLine(c,r);
+    const body=fill(c.tpl[tplKey],Object.assign({},v,{calendar:cal})).replace(/ {2,}/g," ").trim();
+    const ok=await send(r,body,meta); if(ok&&cal&&/\{calendar\}/.test(c.tpl[tplKey]))await refsC().doc(r.id).update({calSent:true}); return ok;
+  }
   async function crewFull(game,newRefId,runDoc){
     const c=await getCfg(), rm=await rosterMap();
     const a=await C("refAssign").doc(game.id).get(); const slots=(a.exists&&a.data().slots)||[];
@@ -208,9 +215,9 @@ function createEngine(opt){
       if(!p.r)continue;
       const partners=andList(people.filter(q=>q!==p).map(q=>q.name))||"none";
       const v=vars(c,{date:longDate(game.date),short:shortMD(game.date),time:game.time||"TBA",team:game.team,partners});
-      const isConfirm=!(refill&&p.r.id!==newRefId); const cal=isConfirm?await calendarLine(c,p.r):"";
-      const body=isConfirm?fill(c.tpl.confirm,Object.assign({},v,{calendar:cal?cal.trimEnd():""})).replace(/ {2,}/g," "):fill(c.tpl.changed,v);
-      if(await send(p.r,body,{gameIds:[game.id],runId:runDoc?runDoc.id:null})){ texted.add(p.name.toLowerCase()); if(cal)await refsC().doc(p.r.id).update({calSent:true}); }
+      const isConfirm=!(refill&&p.r.id!==newRefId); const meta={gameIds:[game.id],runId:runDoc?runDoc.id:null};
+      const ok=isConfirm?await sendCal(c,p.r,"confirm",v,meta):await send(p.r,fill(c.tpl.changed,v),meta);
+      if(ok)texted.add(p.name.toLowerCase());
     }
     if(texted.size)await db.runTransaction(async t=>{ const s=await t.get(C("refAssign").doc(game.id)); const d=s.data()||{}; const sl=(d.slots||[]).map(x=>x&&x.name&&texted.has(x.name.toLowerCase())?Object.assign({},x,{confirmed:true}):x); t.set(C("refAssign").doc(game.id),Object.assign({},d,{slots:sl})); });
   }
@@ -218,7 +225,7 @@ function createEngine(opt){
   async function crewUpdate(game,slots,newName,runId){
     const c=await getCfg(), rm=await rosterMap(); const people=crewPeople(slots,rm);
     const v=vars(c,{short:shortMD(game.date),name:newName,crew:andList(people.map(p=>p.name)),left:slotsFor(game)-people.length});
-    for(const p of people)if(p.r)await send(p.r,fill(c.tpl.update,v),{gameIds:[game.id],runId});
+    for(const p of people)if(p.r)await sendCal(c,p.r,"update",v,{gameIds:[game.id],runId});
   }
 
   // Everyone still pending (no answer yet, or an unclear answer) on games that just filled.
@@ -252,7 +259,7 @@ function createEngine(opt){
       else if(x.res==="already")got.push(id); else full.push(id); }
     const declined=a.items.filter(id=>!gameIds.includes(id));
     await ad.ref.update({status:"answered",answeredAt:now(),claimed:[...new Set((a.claimed||[]).concat(got))],declined:[...new Set((a.declined||[]).concat(declined))]});
-    if(a.kind==="season"&&got.length)await send(r,fill(c.tpl.got,vars(c,{dates:andList(got.map(id=>tinyDate(st.games[id].date)))})),{runId:a.runId,askId,gameIds:got});
+    if(a.kind==="season"&&got.length)await sendCal(c,r,"got",vars(c,{dates:andList(got.map(id=>tinyDate(st.games[id].date)))}),{runId:a.runId,askId,gameIds:got});
     if(full.length)await send(r,fill(c.tpl.sorry,vars(c,{name:a.name,dates:andList(full.filter(id=>st.games[id]).map(id=>tinyDate(st.games[id].date)))})),{runId:a.runId,askId,gameIds:full});
     for(const id of filledNow)await crewFull(st.games[id],r.id,runDoc);
     await apologize(filledNow,askId);

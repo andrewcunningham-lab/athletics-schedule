@@ -247,15 +247,16 @@ async function drawSet(){
     <p class="small muted">Gives you time to fix an accidental change. If the game goes back to its old time in that window, nothing is sent.</p>
     <div class="lbl">Officials' calendar</div>
     <label><span class="lbl">Calendar feed link (Google Apps Script web app URL)</span><input type="text" id="ts-cal" value="${esc(c.calUrl||"")}" placeholder="https://script.google.com/macros/s/.../exec"></label>
-    <p class="small muted">Once this is filled in, each official's first crew confirmation includes his personal calendar link. Leave it blank until the calendar script is set up.</p>
+    <p class="small muted">Once this is filled in, the first text an official gets after taking a game includes his personal calendar link (only once). Leave it blank until the calendar script is set up.</p>
     <div class="lbl">Text wording</div>
-    <p class="small muted">Words in {braces} are filled in for you: {ad}, {school}, {team}, {date} (Tuesday, December 8), {short} (December 8), {time}, {list}, {count}, {dates}, {name}, {crew}, {left}, {partners}, {change} (what changed, e.g. "time has changed from 6:00 PM to 6:30 PM"), {calendar} (his calendar link, only the first time).</p>
+    <p class="small muted">Words in {braces} are filled in for you: {ad}, {school}, {team}, {date} (Tuesday, December 8), {short} (December 8), {time}, {list}, {count}, {dates}, {name}, {crew}, {left}, {partners}, {change} (what changed, e.g. "time has changed from 6:00 PM to 6:30 PM"), {calendar} (adds the calendar link paragraph the first time only), {link} (the link itself, in that paragraph).</p>
     ${Object.keys(K.DEFAULTS.tpl).map(k=>`<label><span class="lbl">${esc(K.TPL_LABELS[k])}</span><textarea id="ts-t-${k}">${esc(c.tpl[k])}</textarea></label>`).join("")}
     <div class="row"><button class="btn primary" id="ts-save">Save</button><button class="btn" id="ts-reset">Put back the original wording</button></div><p class="err" id="ts-err"></p></div>`;
   const read=()=>{ const tpl={}; Object.keys(K.DEFAULTS.tpl).forEach(k=>tpl[k]=$("ts-t-"+k).value); return {adName:$("ts-ad").value.trim(),school:$("ts-sch").value.trim()||"Sandoval",waveSize:Math.max(1,+$("ts-wave").value||3),waveMins:Math.max(1,+$("ts-mins").value||15),startHour:+$("ts-sh").value,endHour:+$("ts-eh").value,recHour:+$("ts-rh").value,recDeadlineHrs:Math.max(1,+$("ts-rd").value||4),autoRefill:$("ts-ar").checked,timeChgMins:Math.max(1,+$("ts-tcm").value||10),calUrl:$("ts-cal").value.trim(),tpl}; };
   $("ts-save").onclick=()=>{ const v=read(); $("ts-err").textContent=""; if(v.endHour<=v.startHour){ $("ts-err").textContent="Texting has to stop after it starts."; return; }
     if(v.calUrl&&!/^https:\/\/script\.google\.com\/.+\/exec$/.test(v.calUrl)){ $("ts-err").textContent="The calendar link should start with https://script.google.com/ and end with /exec."; return; }
-    if(!v.tpl.confirm.includes("{calendar}")&&v.calUrl){ $("ts-err").textContent="Add {calendar} to the crew full confirmation so officials get their calendar link."; return; }
+    if(v.calUrl&&!(v.tpl.got.includes("{calendar}")&&v.tpl.update.includes("{calendar}"))){ $("ts-err").textContent="Add {calendar} to the thank-you after picking games and to the crew update, so officials get their calendar link as soon as they take a game."; return; }
+    if(v.calUrl&&!v.tpl.calNote.includes("{link}")){ $("ts-err").textContent="The calendar link paragraph needs {link} where the link goes."; return; }
     act($("ts-save"),async()=>{ await E.saveCfg(v); await ctx.fdb.collection("meta").doc("calFeed").set({url:v.calUrl}); },"Saved"); };
   $("ts-reset").onclick=()=>{ if(!confirm("Put every text back to the original wording?"))return; Object.keys(K.DEFAULTS.tpl).forEach(k=>$("ts-t-"+k).value=K.DEFAULTS.tpl[k]); ctx.toast("Click Save to keep it"); };
 }
