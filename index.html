@@ -9,6 +9,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="texting.js"></script>
+<script src="texting-ui.js"></script>
 <style>
 html,body{margin:0}
 
@@ -137,6 +139,11 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 .nstat{font-size:12px;font-weight:700;white-space:nowrap;border:1.5px solid currentColor;border-radius:4px;padding:1px 6px;flex:none}
 .rrow{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--line);font-size:13.5px}
 .rrow input{width:100%}
+.rrow2{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--muted);align-items:center}
+.rrow2 label{display:inline-flex;gap:4px;align-items:center;cursor:pointer;white-space:nowrap}
+.rrow .rrow2 input{width:auto;margin:0}
+.rrow2 .oo{font-weight:700;color:var(--scarlet)}
+.txbadge{display:inline-block;min-width:18px;padding:0 5px;border-radius:99px;background:var(--scarlet);color:#fff;font-size:11px;font-weight:700;margin-left:4px;text-align:center}
 .cfs{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px}
 .cfs .h{display:flex;gap:8px;align-items:flex-start;font-weight:700}
 .cfs .h label{flex-direction:row;align-items:center;gap:6px}
@@ -317,6 +324,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
       <div class="admmenu" id="adMenu" hidden role="menu" aria-label="AD tools">
         <div class="mg"><div class="mgh">Game day</div>
           <button class="mi" role="menuitem" id="refBtn" hidden>Officials<small>Assign and confirm officials</small></button>
+          <button class="mi" role="menuitem" id="txBtn" hidden>Officials texting <span class="txbadge" id="txMenuN" hidden></span><small>Season lists, drop fills, and replies (test mode)</small></button>
           <button class="mi" role="menuitem" id="weBtn" hidden>Worker emails<small>Where day-before reminders go</small></button>
           <button class="mi" role="menuitem" id="cfBtn" hidden>Game confirmations<small>Email opposing ADs</small></button>
         </div>
@@ -383,6 +391,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
       <legend class="lbl">Officials <span class="small muted">(only you, Ryan, and Cara can see these)</span></legend>
       <div id="offSlots"></div>
     </fieldset>
+    <div id="txGameLog"></div>
     <datalist id="refNames"></datalist>
     <fieldset id="wkWrap" class="offs" hidden>
       <legend class="lbl">Workers <span class="small muted">(uncheck Needed for positions this game doesn't use)</span></legend>
@@ -579,6 +588,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
   </div>
   <div class="row" style="margin-top:12px"><button class="btn" id="ref-close">Close</button></div>
 </aside>
+<aside class="sheet wide" id="txSheet" hidden role="dialog" aria-labelledby="txTitle"></aside>
 <datalist id="workerNames"></datalist>
 <aside class="sheet wide" id="weSheet" hidden role="dialog" aria-labelledby="weTitle">
   <h3 id="weTitle">Worker emails</h3>
@@ -760,7 +770,7 @@ function renderList(){
 }
 
 // ---- sheets ----
-const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet"];
+const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet","txSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; editingP=null; }
 function openSheet(g,date){
@@ -772,7 +782,7 @@ function openSheet(g,date){
     $("g-team").value=g?g.team:""; $("g-ha").value=g?g.ha:"H"; $("g-fac").value=g?g.facility||"":"";
     $("g-opp").value=g?g.opp:""; $("g-depart").value=g?g.depart||"":""; $("g-tent").checked=!!(g&&g.tent); $("g-cancel").checked=!!(g&&g.cancelled);
     if(!canEdit){ if(!g)$("g-team").value=gameTeams[0]||""; $("g-team").readOnly=gameTeams.length===1; } else $("g-team").readOnly=false;
-    $("delBtn").hidden=!g; syncDepart(); drawSlots(g); drawWork(g); $("g-date").focus();
+    $("delBtn").hidden=!g; syncDepart(); drawSlots(g); drawWork(g); if(canEdit&&window.Texting)Texting.gameLog(g,$("txGameLog")); else $("txGameLog").innerHTML=""; $("g-date").focus();
   } else {
     $("form").hidden=true; $("ro").hidden=false; $("sheetTitle").textContent=g.team; roGame=g;
     const offA=(canSeeRefs&&needsRefs(g)&&asg[g.id]&&asg[g.id].slots||[]).filter(x=>x.name);
@@ -994,6 +1004,7 @@ function setEditor(user){
   $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email):"Not signed in";
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in";
   $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
+  $("txBtn").hidden=!canEdit; if(window.Texting){ if(canEdit&&fdb)Texting.init({fdb,toast,showSheet,closeSheet,slotsFor,needsRefs,sortGames,fmtDate,todayIso}); else Texting.stop(); }
   $("coachBtn").hidden=!canEdit; $("spBtn").hidden=!canSeeRefs; $("weBtn").hidden=!canEdit; $("moreBtn").hidden=!(canEdit||canSeeRefs);
   coachTeams=[]; gameTeams=[]; canEvents=false; loadCoach(user);
   checkSetup(); fixNames(); render();
@@ -1052,8 +1063,9 @@ $("form").addEventListener("submit",async e=>{
     let asgBefore=null;
     if(canEdit){
       const n=/^HS\b.*basketball/i.test(g.team)?3:2;
-      const slots=g.ha==="H"?[0,1,2].slice(0,n).map(i=>({name:$("of-"+i).value.trim(),confirmed:$("oc-"+i).checked})):[];
       const prevA=editingId&&asg[editingId]?JSON.parse(JSON.stringify(asg[editingId])):null;
+      const prevSl=(prevA&&prevA.slots)||[];
+      const slots=g.ha==="H"?[0,1,2].slice(0,n).map(i=>{ const nm=$("of-"+i).value.trim(), o=prevSl.find(x=>x&&x.name&&x.name.toLowerCase()===nm.toLowerCase()); const x={name:nm,confirmed:$("oc-"+i).checked}; if(nm&&o&&o.refId){ x.refId=o.refId; if(o.via)x.via=o.via; } return x; }):[];
       const hasAny=slots.some(x=>x.name);
       if(hasAny||prevA){ asgBefore={col:"refAssign",id:ref.id,d:prevA}; if(hasAny)await asgCol().doc(ref.id).set({date:g.date,slots}); else await asgCol().doc(ref.id).delete(); }
       if(hasAny)await addRosterNames(slots.map(x=>x.name));
@@ -1374,6 +1386,7 @@ $("wkList").addEventListener("click",async e=>{ const t=e.target.closest("[data-
 function refTab(which){ $("rt-need").setAttribute("aria-pressed",which==="need"); $("rt-list").setAttribute("aria-pressed",which==="list"); $("rp-need").hidden=which!=="need"; $("rp-list").hidden=which!=="list"; if(which==="list")renderRoster(); else loadNeeds(); }
 $("rt-need").onclick=()=>refTab("need"); $("rt-list").onclick=()=>refTab("list");
 $("refBtn").onclick=()=>{ $("oerr").textContent=""; showSheet("refSheet"); refTab("need"); };
+$("txBtn").onclick=()=>{ if(window.Texting)Texting.open(); };
 let needGames=[];
 async function loadNeeds(){
   $("needList").innerHTML='<p class="small muted">Loading…</p>';
@@ -1394,9 +1407,13 @@ let asgCache={};
 $("needList").addEventListener("click",e=>{ const b=e.target.closest("[data-nid]"); if(!b)return; const g=needGames.find(x=>x.id===b.dataset.nid); if(!g)return;
   if(!asg[g.id]&&asgCache[g.id])asg[g.id]=asgCache[g.id]; openSheet(g); });
 function renderRoster(){
-  $("refRoster").innerHTML=roster.length?`<div class="rrow" style="font-weight:700;color:var(--muted)"><span>Name</span><span>Phone</span><span>Email</span><span></span></div>`+roster.map(r=>`<div class="rrow" data-rid="${esc(r.id)}"><input type="text" data-f="name" value="${esc(r.name||"")}" aria-label="Name"><input type="text" data-f="phone" value="${esc(r.phone||"")}" aria-label="Phone"><input type="text" data-f="email" value="${esc(r.email||"")}" aria-label="Email"><button class="btn" data-del="${esc(r.id)}">Remove</button></div>`).join(""):'<p class="small muted">No officials yet. Add one above, import a CSV, or type names on a game.</p>';
+  $("refRoster").innerHTML=roster.length?`<div class="rrow" style="font-weight:700;color:var(--muted)"><span>Name</span><span>Phone</span><span>Email</span><span></span></div>`+roster.map(r=>`<div class="rrow" data-rid="${esc(r.id)}"><input type="text" data-f="name" value="${esc(r.name||"")}" aria-label="Name"><input type="text" data-f="phone" value="${esc(r.phone||"")}" aria-label="Phone"><input type="text" data-f="email" value="${esc(r.email||"")}" aria-label="Email"><button class="btn" data-del="${esc(r.id)}">Remove</button><div class="rrow2"><label><input type="checkbox" data-reg${r.regular?" checked":""}> Regular (texted first)</label><span>Works:</span>${refSports().map(t=>`<label><input type="checkbox" data-sport="${esc(t)}"${(r.sports||[]).includes(t)?" checked":""}> ${esc(t)}</label>`).join("")}${(r.sports||[]).length?"":'<span>(none checked = texted for every sport)</span>'}${r.optedOut?'<span class="oo">OPTED OUT of texts</span>':""}</div></div>`).join(""):'<p class="small muted">No officials yet. Add one above, import a CSV, or type names on a game.</p>';
 }
-$("refRoster").addEventListener("change",async e=>{ const i=e.target.closest("input[data-f]"); if(!i)return; const id=i.closest("[data-rid]").dataset.rid; try{ await rosterCol().doc(id).update({[i.dataset.f]:i.value.trim()}); toast("Saved"); }catch(_){ toast("Couldn't save. Check your connection."); } });
+const refSports=()=>[...new Set(teamList.concat(games.map(g=>g.team)).filter(t=>t&&t!=="Music"))].sort();
+$("refRoster").addEventListener("change",async e=>{ const c=e.target.closest("input[data-reg],input[data-sport]"); if(c){ const id=c.closest("[data-rid]").dataset.rid; const row=c.closest("[data-rid]");
+    const up=c.matches("[data-reg]")?{regular:c.checked}:{sports:[...row.querySelectorAll("input[data-sport]:checked")].map(x=>x.dataset.sport)};
+    try{ await rosterCol().doc(id).update(up); toast("Saved"); }catch(_){ toast("Couldn't save. Check your connection."); } return; }
+  const i=e.target.closest("input[data-f]"); if(!i)return; const id=i.closest("[data-rid]").dataset.rid; try{ await rosterCol().doc(id).update({[i.dataset.f]:i.value.trim()}); toast("Saved"); }catch(_){ toast("Couldn't save. Check your connection."); } });
 $("refRoster").addEventListener("click",async e=>{ const b=e.target.closest("[data-del]"); if(!b)return; const r=roster.find(x=>x.id===b.dataset.del); if(!r||!confirm("Remove "+r.name+" from the officials list? Games they're already on keep their name."))return; try{ await rosterCol().doc(r.id).delete(); toast("Removed "+r.name); }catch(_){ toast("Couldn't remove. Check your connection."); } });
 $("o-add").onclick=async()=>{ const name=$("o-name").value.trim(); $("oerr").textContent=""; if(!name){ $("oerr").textContent="Type a name."; return; }
   if(roster.some(r=>String(r.name).toLowerCase()===name.toLowerCase())){ $("oerr").textContent=name+" is already on the list."; return; }

@@ -19,6 +19,11 @@ service cloud.firestore {
     match /practiceLog/{id} { allow read: if isAD(); allow create: if isAD() || isCoachFor(request.resource.data.team); }
     match /workerAccounts/{uid} { allow read: if seesRefs() || (request.auth != null && request.auth.uid == uid); allow create, update: if request.auth != null && request.auth.uid == uid && request.resource.data.keys().hasOnly(['email','name']) && request.resource.data.email == request.auth.token.email; allow delete: if isAD() || (request.auth != null && request.auth.uid == uid); }
     match /workerDirectory/{id} { allow read: if seesRefs(); allow write: if isAD(); }
+    match /txcfg/{id} { allow read, write: if isAD(); }
+    match /txRuns/{id} { allow read, write: if isAD(); }
+    match /txAsks/{id} { allow read, write: if isAD(); }
+    match /txLog/{id} { allow read, write: if isAD(); }
+    match /txInbox/{id} { allow read, write: if isAD(); }
     match /signups/{id} { allow read: if true; allow write: if isAD();
       allow create: if request.auth != null && request.resource.data.keys().hasOnly(['gameId','date','slot','name','uid']) && request.resource.data.uid == request.auth.uid && request.resource.data.slot in ['admin','book','clock','clock2','gate','conc'] && id == request.resource.data.gameId + '_' + request.resource.data.slot && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60 && exists(/databases/$(database)/documents/games/$(request.resource.data.gameId));
       allow delete: if request.auth != null && resource.data.uid == request.auth.uid; }
