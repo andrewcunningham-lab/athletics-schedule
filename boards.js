@@ -34,6 +34,11 @@ function automation(boards,board,before,after){
   const added=(after.labels||[]).filter(l=>!(before.labels||[]).includes(l));
   if(board.key==="coaches"&&added.length){
     const hiring=boards.find(b=>b.key==="hiring");
+    // VACANT: the whole staff is open → one hiring card for both spots
+    const v=lab("VACANT");
+    if(v&&added.includes(v.id)&&hiring&&hiring.lists&&hiring.lists[0]){
+      out.create.push({boardId:hiring.id,listId:hiring.lists[0].id,title:after.title+" — Head & Assistant",labels:[]});
+      out.log.push("Automation added “"+after.title+" — Head & Assistant” to "+hiring.name); }
     for(const [trig,role] of [["MISSING HEAD COACH","Head Coach"],["MISSING ASSISTANT","Assistant Coach"]]){
       const t=lab(trig); if(!t||!added.includes(t.id))continue;
       const fs=lab("FULLY STAFFED"); const cur=out.patch.labels||after.labels||[];
@@ -525,7 +530,7 @@ function menuPanel(){
 function labelsPanel(){
   const b=curBoard();
   openPanel("Labels",`${b.labels.map(l=>`<div class="row2"><input type="text" data-ln="${l.id}" value="${esc(l.name)}" aria-label="Label name" style="flex:1;min-width:0;border:1px solid #8590a2;border-radius:4px;padding:4px 6px;font:inherit;font-size:13px"><select data-lc="${l.id}" aria-label="Label color">${Object.keys(COLORS).map(k=>`<option${k===l.color?" selected":""}>${k}</option>`).join("")}</select>${labChip(l)}<button class="bdIcon" data-ld="${l.id}" aria-label="Delete label ${esc(l.name)}">🗑</button></div>`).join("")}
-    <div style="margin-top:10px"><button class="bdBlue" data-la>Create a new label</button></div><p style="font-size:12px;color:#626f86">Labels always show their name on cards, so color is never the only way to tell them apart. Renaming a label the automation uses (MISSING HEAD COACH, MISSING ASSISTANT, FULLY STAFFED, SEASON ITEMS DONE, Head Coach, Assistant Coach) turns that rule off.</p>`,p=>{
+    <div style="margin-top:10px"><button class="bdBlue" data-la>Create a new label</button></div><p style="font-size:12px;color:#626f86">Labels always show their name on cards, so color is never the only way to tell them apart. Renaming a label the automation uses (VACANT, MISSING HEAD COACH, MISSING ASSISTANT, FULLY STAFFED, SEASON ITEMS DONE, Head Coach, Assistant Coach) turns that rule off.</p>`,p=>{
     p.onchange=e=>{ const d=e.target.dataset; const b=curBoard(); if(d.ln)saveBoard({labels:b.labels.map(x=>x.id===d.ln?Object.assign({},x,{name:e.target.value.trim()||x.name}):x)}); if(d.lc)saveBoard({labels:b.labels.map(x=>x.id===d.lc?Object.assign({},x,{color:e.target.value}):x)}); };
     p.onclick=async e=>{ const t=e.target.closest("[data-la],[data-ld]"); if(!t)return; const d=t.dataset; const b=curBoard();
       if("la" in d)await saveBoard({labels:b.labels.concat([{id:"lb_"+rid(),name:"New label",color:"gray"}])});
@@ -563,6 +568,7 @@ function autoPanel(){
   openPanel("Automation",`<p style="font-size:14px">These run on their own, like the Butler rules did in Trello:</p>
     <div class="row2" style="display:block"><b>Coach names → staffing labels</b><br><span style="font-size:13px">On the coaches board, when you type or clear a Head Coach or Assistant Coach name, the labels update: a blank head adds <b>MISSING HEAD COACH</b>, a blank assistant adds <b>MISSING ASSISTANT</b>, and both filled in sets <b>FULLY STAFFED</b>. Other labels, like COMPLIANCE FLAG, are left alone.</span></div>
     <div class="row2" style="display:block"><b>Coach vacancy → hiring card</b><br><span style="font-size:13px">On the coaches board, adding <b>MISSING HEAD COACH</b> removes FULLY STAFFED and adds “{card} — Head Coach” to the first list of Coach Hiring. <b>MISSING ASSISTANT</b> does the same with “{card} — Assistant Coach.”</span></div>
+    <div class="row2" style="display:block"><b>Vacant → hiring card</b><br><span style="font-size:13px">On the coaches board, adding <b>VACANT</b> adds “{card} — Head & Assistant” to the first list of Coach Hiring.</span></div>
     <div class="row2" style="display:block"><b>Season items done → label</b><br><span style="font-size:13px">When a card's Season Items checklist is all checked, <b>SEASON ITEMS DONE</b> is added.</span></div>
     <p style="font-size:12px;color:#626f86">Each run shows in the card's activity as “Automation.”</p>`);
 }
@@ -743,6 +749,7 @@ else root.Boards=Object.assign(api,{
     ctx.showSheet("bdSheet");
     if(unsubB)unsubB();
     unsubB=C("boards").onSnapshot(s=>{ boards=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>(a.order||0)-(b.order||0));
+      const cb=boards.find(b=>b.key==="coaches"); if(cb&&!byName(cb.labels,"VACANT"))C("boards").doc(cb.id).update({labels:(cb.labels||[]).concat([{id:"lb_"+rid(),name:"VACANT",color:"black"}])}).catch(()=>{});
       const ob=openBoards(); if(!cur||!ob.find(b=>b.id===cur)){ cur=ob[0]&&ob[0].id; watchCards(); } else if(!(drag&&drag.active)){ const keep=composing; draw(); if(keep&&document.querySelector(`[data-comp="${keep}"]`))composer(keep); }
       refreshPanel(); paintEditor(); },
       e=>{ console.error(e); $("bdBody").innerHTML='<p style="color:#fff;padding:16px">Couldn\'t load boards. The Firestore rules for boards need publishing first.</p>'; });
