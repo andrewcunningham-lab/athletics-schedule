@@ -18,8 +18,20 @@ const byName=(arr,n)=>(arr||[]).find(x=>String(x.name).toLowerCase()===String(n)
 function automation(boards,board,before,after){
   const out={patch:{},create:[],log:[]};
   if(!board)return out;
-  const added=(after.labels||[]).filter(l=>!(before.labels||[]).includes(l));
   const lab=n=>byName(board.labels,n);
+  // 0. Coaches board: when a Head Coach or Assistant Coach name changes, the staffing labels follow it.
+  if(board.key==="coaches"){
+    const fH=byName(board.fields,"Head Coach"), fA=byName(board.fields,"Assistant Coach");
+    const val=(c,f)=>f?String((c.fields||{})[f.id]||"").trim():"";
+    if(fH&&fA&&(val(before,fH)!==val(after,fH)||val(before,fA)!==val(after,fA))){
+      const h=!!val(after,fH), a=!!val(after,fA), mh=lab("MISSING HEAD COACH"), ma=lab("MISSING ASSISTANT"), fs=lab("FULLY STAFFED");
+      let ls=(after.labels||[]).slice();
+      const set=(l,on)=>{ if(!l)return; const has=ls.includes(l.id); if(on&&!has){ ls.push(l.id); out.log.push("Automation added "+l.name); } if(!on&&has){ ls=ls.filter(x=>x!==l.id); out.log.push("Automation removed "+l.name); } };
+      set(mh,!h); set(ma,!a); set(fs,h&&a);
+      if(ls.join()!==(after.labels||[]).join()){ out.patch.labels=ls; after=Object.assign({},after,{labels:ls}); }
+    }
+  }
+  const added=(after.labels||[]).filter(l=>!(before.labels||[]).includes(l));
   if(board.key==="coaches"&&added.length){
     const hiring=boards.find(b=>b.key==="hiring");
     for(const [trig,role] of [["MISSING HEAD COACH","Head Coach"],["MISSING ASSISTANT","Assistant Coach"]]){
@@ -549,6 +561,7 @@ function archivePanel(){
 }
 function autoPanel(){
   openPanel("Automation",`<p style="font-size:14px">These run on their own, like the Butler rules did in Trello:</p>
+    <div class="row2" style="display:block"><b>Coach names → staffing labels</b><br><span style="font-size:13px">On the coaches board, when you type or clear a Head Coach or Assistant Coach name, the labels update: a blank head adds <b>MISSING HEAD COACH</b>, a blank assistant adds <b>MISSING ASSISTANT</b>, and both filled in sets <b>FULLY STAFFED</b>. Other labels, like COMPLIANCE FLAG, are left alone.</span></div>
     <div class="row2" style="display:block"><b>Coach vacancy → hiring card</b><br><span style="font-size:13px">On the coaches board, adding <b>MISSING HEAD COACH</b> removes FULLY STAFFED and adds “{card} — Head Coach” to the first list of Coach Hiring. <b>MISSING ASSISTANT</b> does the same with “{card} — Assistant Coach.”</span></div>
     <div class="row2" style="display:block"><b>Season items done → label</b><br><span style="font-size:13px">When a card's Season Items checklist is all checked, <b>SEASON ITEMS DONE</b> is added.</span></div>
     <p style="font-size:12px;color:#626f86">Each run shows in the card's activity as “Automation.”</p>`);
