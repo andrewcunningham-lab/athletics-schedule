@@ -1289,6 +1289,7 @@ $("s-save").onclick=async()=>{ const h=+$("s-hours").value; if(!(h>=1&&h<=6)){ t
 // ---- spending tally (ad@ and Cara) ----
 const PAY={hsRef:125,ref:85,worker:30}, PAID_SLOTS=["book","clock","clock2","gate"], FULL_BEFORE="2026-11-01";
 const isHsBB=t=>/^HS\b.*basketball/i.test(t||""), isBB=t=>/basketball/i.test(t||"");
+const unpaidTeam=t=>/pee\s*-?\s*wee/i.test(t||""); // PeeWee: no officials or workers are paid by the district
 const realName=n=>{ const v=String(n||"").trim(); return !!v&&!/^(n\/?a|tba|tbd|none|-+|—)$/i.test(v); };
 const money=n=>"$"+Math.round(n).toLocaleString("en-US");
 function spSeasons(){ const cur=seasonOf(iso(new Date())); const o=[]; for(let y=cur;y>=cur-2;y--)o.push(`<option value="${y}">${y}–${String(y+1).slice(2)}</option>`); $("sp-season").innerHTML=o.join(""); }
@@ -1303,7 +1304,7 @@ async function loadSpending(){
       const rate=isHsBB(g.team)?PAY.hsRef:PAY.ref; let refs, workers;
       if(!isBB(g.team)&&g.date<FULL_BEFORE){ refs=2; workers=posFor(g).filter(p=>PAID_SLOTS.includes(p)).length; }
       else { refs=((asg[g.id]||{}).slots||[]).filter(x=>realName(x&&x.name)).length; workers=(wk[g.id]||new Set()).size; }
-      const o=refs*rate, w=workers*PAY.worker;
+      const free=unpaidTeam(g.team), o=free?0:refs*rate, w=free?0:workers*PAY.worker;
       const T=byTeam[g.team]=byTeam[g.team]||{games:0,o:0,w:0}; T.games++; T.o+=o; T.w+=w;
       const mk=g.date.slice(0,7), M=byMonth[mk]=byMonth[mk]||{o:0,w:0}; M.o+=o; M.w+=w; tO+=o; tW+=w; });
     const teams=Object.entries(byTeam).sort((a,b)=>(b[1].o+b[1].w)-(a[1].o+a[1].w)||a[0].localeCompare(b[0]));
