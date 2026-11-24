@@ -20,6 +20,8 @@ service cloud.firestore {
       allow create: if isCoachFor(request.resource.data.team);
       allow update: if isCoachFor(resource.data.team) && request.resource.data.team == resource.data.team;
       allow delete: if isCoachFor(resource.data.team); }
+    // Preseason schedule confirmations (status per game). AD only; the email script writes with ad@'s own access.
+    match /preConf/{id} { allow read, write: if isAD(); }
     // Boards (Trello replacement): AD edits; superintendent and principals (role 'admin') can view.
     match /boards/{id} { allow read: if isAD() || isSchoolAdmin(); allow write: if isAD(); }
     match /boardCards/{id} { allow read: if isAD() || isSchoolAdmin(); allow write: if isAD(); }

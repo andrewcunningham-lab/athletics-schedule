@@ -9,10 +9,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="texting.js?v=20261124d"></script>
-<script src="texting-ui.js?v=20261124d"></script>
-<script src="attendance.js?v=20261124d"></script>
-<script src="boards.js?v=20261124d"></script>
+<script src="texting.js?v=20261124e"></script>
+<script src="texting-ui.js?v=20261124e"></script>
+<script src="attendance.js?v=20261124e"></script>
+<script src="boards.js?v=20261124e"></script>
 <style>
 html,body{margin:0}
 
@@ -146,6 +146,13 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 .rrow .rrow2 input{width:auto;margin:0}
 .rrow2 .oo{font-weight:700;color:var(--scarlet)}
 .txbadge{display:inline-block;min-width:18px;padding:0 5px;border-radius:99px;background:var(--scarlet);color:#fff;font-size:11px;font-weight:700;margin-left:4px;text-align:center}
+.psrow{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.psrow .g{font-weight:700}.psrow .s{font-size:13px;color:var(--muted)}
+.psrow .st{font-size:13px;font-weight:700;margin-top:3px}
+.psrow .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:none}
+.psrow .acts .btn{padding:4px 10px;font-size:13px}
+.pschip{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:2px 8px;font-size:13px}
+@media (max-width:600px){.psrow{flex-direction:column}.psrow .acts{justify-content:flex-start}}
 .cfs{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px}
 .cfs .h{display:flex;gap:8px;align-items:flex-start;font-weight:700}
 .cfs .h label{flex-direction:row;align-items:center;gap:6px}
@@ -333,6 +340,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
           <button class="mi" role="menuitem" id="refBtn" hidden>Officials<small>Assign and confirm officials</small></button>
           <button class="mi" role="menuitem" id="txBtn" hidden>Officials texting <span class="txbadge" id="txMenuN" hidden></span><small>Season lists, drop fills, and replies (test mode)</small></button>
           <button class="mi" role="menuitem" id="weBtn" hidden>Worker emails<small>Where day-before reminders go</small></button>
+          <button class="mi" role="menuitem" id="psBtn" hidden>Preseason schedule<small>Send each game to the other AD to confirm or move</small></button>
           <button class="mi" role="menuitem" id="cfBtn" hidden>Game confirmations<small>Email opposing ADs</small></button>
         </div>
         <div class="mg"><div class="mgh">People</div>
@@ -618,6 +626,29 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
   <p class="small muted" style="margin-top:12px">Home games only; cancelled games aren't counted. Officials: HS basketball $125 each, everything else $85 each. Workers: $30 each for scorebook, main clock, clock 2, and gate (admin and concessions are unpaid). Every home game counts a full crew, whether or not names are filled in: 3 officials for HS basketball, 2 for everything else, plus every paid worker spot the game has.</p>
   <div class="row" style="margin-top:12px"><button class="btn" id="sp-close">Close</button></div>
 </aside>
+<aside class="sheet wide" id="psSheet" hidden role="dialog" aria-labelledby="psTitle">
+  <h3 id="psTitle">Preseason schedule</h3>
+  <p class="small muted">Click Send next to a game to email that school's AD. They can confirm it, or pick a different open date within a month. A new date is only a request until you approve it.</p>
+  <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
+    <label><span class="lbl">School year</span><select id="ps-season"></select></label>
+    <label><span class="lbl">Team</span><select id="ps-team"><option value="">All teams</option></select></label>
+    <label><span class="lbl">Show</span><select id="ps-show"><option value="">All games</option><option value="none">Not sent</option><option value="sent">Waiting on them</option><option value="change">Change requested</option><option value="confirmed">Confirmed</option></select></label>
+  </div>
+  <details id="ps-setWrap" style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:700">No-game days and season dates</summary>
+    <div class="form" style="margin-top:8px">
+      <p class="small muted">Dates the other AD can pick are Monday–Friday, inside the team's season, not a no-game day, not a day the team already plays, and for home games not a day that gym or field has another game or event. Practices don't block a date.</p>
+      <span class="lbl">No-game days</span>
+      <div class="row" style="gap:8px;align-items:center"><input type="date" id="ps-bday"><button class="btn" id="ps-badd">Add</button></div>
+      <div id="ps-blist" class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+      <span class="lbl" style="margin-top:10px">Season dates (blank uses the team's first and last game)</span>
+      <div id="ps-seasons"></div>
+      <div class="row"><button class="btn primary" id="ps-ssave">Save season dates</button></div>
+    </div>
+  </details>
+  <div id="ps-list"><p class="small muted">Loading…</p></div>
+  <p class="err" id="ps-err"></p>
+  <div class="row" style="margin-top:12px"><button class="btn" id="ps-close">Close</button></div>
+</aside>
 <aside class="sheet wide" id="cfSheet" hidden role="dialog" aria-labelledby="cfTitle">
   <h3 id="cfTitle">Game confirmations</h3>
   <div class="seg" role="group" aria-label="Confirmations view" style="align-self:flex-start;margin-bottom:10px"><button id="ct-send" aria-pressed="true">Send</button><button id="ct-sch" aria-pressed="false">Schools</button><button id="ct-set" aria-pressed="false">Email setup</button></div>
@@ -793,7 +824,7 @@ function renderList(){
 }
 
 // ---- sheets ----
-const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet","txSheet","attSheet","bdSheet"];
+const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet","txSheet","attSheet","bdSheet","psSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; editingP=null; }
 function openSheet(g,date){
@@ -1026,7 +1057,7 @@ function setEditor(user){
   canSeeRefs=!!(user&&user.email&&REF_VIEWERS.includes(user.email.toLowerCase()));
   $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email):"Not signed in";
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in";
-  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
+  $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("psBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
   $("txBtn").hidden=!canEdit; $("bdBtn").hidden=!canEdit; if(window.Boards&&canEdit&&fdb)Boards.init({fdb,toast,showSheet,closeSheet}); if(window.Texting){ if(canEdit&&fdb)Texting.init({fdb,toast,showSheet,closeSheet,slotsFor,needsRefs,sortGames,fmtDate,todayIso}); else Texting.stop(); }
   $("coachBtn").hidden=!canEdit; $("spBtn").hidden=!canSeeRefs; $("weBtn").hidden=!canEdit; $("moreBtn").hidden=!(canEdit||canSeeRefs);
   coachTeams=[]; gameTeams=[]; canEvents=false; isSchoolAdmin=false; $("attBtn").hidden=true; $("admBoardsBtn").hidden=$("admSpendBtn").hidden=true; $("attUpBtn").hidden=!canEdit;
@@ -1104,6 +1135,7 @@ $("form").addEventListener("submit",async e=>{
         if(nm)bt.set(suCol().doc(id),{gameId:ref.id,date:g.date,slot:k,name:nm,uid:ox&&ox.name===nm?ox.uid:""}); else bt.delete(suCol().doc(id)); n++; });
       if(n)await bt.commit();
     }
+    if(canEdit&&pendingPre&&pendingPre.id===ref.id){ const pm=pendingPre; pendingPre=null; if(g.date===pm.date){ try{ await fdb.collection("preConf").doc(ref.id).set({status:"moved",movedTo:g.date,movedAt:Date.now()},{merge:true}); }catch(_){} } }
     if(canEdit)await record((editingId?"edit ":"add ")+g.team+" "+vs(g)+" "+fmtDate(g.date),[{id:ref.id,d:old?clean(old):null}].concat(asgBefore?[asgBefore]:[],suBefore)); toast(editingId?"Game saved":"Game added"); closeSheet();
     if(canEdit&&old&&g.ha==="H"&&!g.cancelled&&(old.date!==g.date||(old.time||"")!==(g.time||""))&&window.Texting)Texting.onGameTimeChange(ref.id,{date:old.date,time:old.time||""});
   }catch(err){ $("ferr").textContent=denied(err)?"You don't have permission to change the schedule.":"Couldn't save. Check your connection and try again."; }
@@ -1483,6 +1515,63 @@ $("o-file").addEventListener("change",async e=>{ const f=e.target.files[0]; e.ta
     if(unknown.size)notes.push("Didn't match any team, so nothing was checked for: "+[...unknown].map(v=>"“"+v+"”").join(", ")+". Check those by hand below, or rename them to a team name and import again.");
     $("oinfo").textContent=notes.join(" ");
   }catch(_){ $("oerr").textContent="Couldn't read that file. Save it as CSV and try again."; } });
+
+// ---- preseason schedule: send each game to the other AD to confirm or ask for a new date ----
+let pendingPre=null, psGames=[], psConf={}, psCfg={blocked:[],seasons:{}}, unsubPs=null;
+const psCfgDoc=()=>fdb.collection("meta").doc("preseason");
+const psDay=s=>{ const d=new Date(s); return (d.getMonth()+1)+"/"+d.getDate(); };
+function psStatus(g){ const c=psConf[g.id]; if(!c)return {k:"none",t:"Not sent"};
+  const stale=c.date&&c.date!==g.date&&c.status!=="moved";
+  if(c.status==="change")return {k:"change",t:"Asked to move to "+fmtDate(c.reqDate)+(stale?" (but the game's date has changed since)":"")};
+  if(stale)return {k:"none",t:"Date changed since the email. Send again."};
+  if(c.status==="confirmed")return {k:"confirmed",t:"✓ Confirmed"+(c.confirmedAt?" "+psDay(c.confirmedAt.toDate?c.confirmedAt.toDate():c.confirmedAt):"")};
+  if(c.status==="moved")return {k:"none",t:"Moved to "+fmtDate(c.movedTo)+". Send again to confirm the new date."};
+  if(c.status==="declined")return {k:"sent",t:"Change declined. Waiting on them"};
+  return {k:"sent",t:"Sent"+(c.sentAt?" "+psDay(c.sentAt.toDate?c.sentAt.toDate():c.sentAt):"")+(c.to?" to "+c.to:"")+". Waiting on them"}; }
+function renderPs(){
+  const team=$("ps-team").value, show=$("ps-show").value;
+  const rows=psGames.filter(g=>(!team||g.team===team)).map(g=>({g,st:psStatus(g),sc:findSchool(g.opp)})).filter(x=>!show||x.st.k===show);
+  $("ps-list").innerHTML=rows.length?rows.map(({g,st,sc})=>{ const em=sc&&sc.email;
+    const acts=st.k==="change"?`<button class="btn primary" data-psok="${esc(g.id)}">Approve ${esc(fmtDate(psConf[g.id].reqDate))}</button><button class="btn" data-psno="${esc(g.id)}">Decline</button>`:"";
+    const send=em?`<button class="btn${st.k==="none"&&!psConf[g.id]?" primary":""}" data-pssend="${esc(g.id)}">${psConf[g.id]?"Send again":"Send"}</button>`:"";
+    return `<div class="psrow"><div><div class="g">${esc(fmtDate(g.date))} · ${esc(g.time||"TBA")} · ${esc(g.team)} ${g.ha==="A"?"at":"vs"} ${esc(g.opp)}</div>
+      <div class="s">${sc?esc(sc.name)+(em?" · "+esc(em):" · <b>no AD email on file</b> (add it under Game confirmations → Schools)"):"<b>No school on file</b> for "+esc(g.opp)+" (add it under Game confirmations → Schools)"}</div>
+      <div class="st">${esc(st.t)}</div></div><div class="acts">${acts}${send}</div></div>`; }).join(""):'<p class="small muted">No games match.</p>';
+}
+function drawPsCfg(){
+  $("ps-blist").innerHTML=(psCfg.blocked||[]).slice().sort().map(d=>`<span class="pschip">${esc(fmtDate(d))} <button class="btn" style="padding:0 6px;font-size:12px" data-psbrm="${esc(d)}" aria-label="Remove ${esc(fmtDate(d))}">✕</button></span>`).join("")||'<span class="small muted">None yet.</span>';
+  const teams=[...new Set(psGames.map(g=>g.team))].sort(); const ss=psCfg.seasons||{};
+  $("ps-seasons").innerHTML=teams.map(t=>{ const x=ss[t]||{}; return `<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px"><span style="min-width:170px">${esc(t)}</span><input type="date" data-psfrom="${esc(t)}" value="${esc(x.from||"")}" aria-label="${esc(t)} season starts"> to <input type="date" data-psto="${esc(t)}" value="${esc(x.to||"")}" aria-label="${esc(t)} season ends"></div>`; }).join("")||'<p class="small muted">No games this school year yet.</p>';
+}
+async function loadPs(){
+  const y=+$("ps-season").value; $("ps-err").textContent=""; $("ps-list").innerHTML='<p class="small muted">Loading…</p>';
+  try{
+    const [gs,cf]=await Promise.all([gamesCol().where("date",">=",y+"-07-01").where("date","<=",(y+1)+"-06-30").get(),psCfgDoc().get()]);
+    psGames=gs.docs.map(d=>Object.assign({id:d.id},d.data())).filter(g=>!g.cancelled&&!SKIP.test(g.opp||"")&&!SKIP.test(g.team||"")).sort(sortGames);
+    psCfg=Object.assign({blocked:[],seasons:{}},cf.exists?cf.data():{});
+    const cur=$("ps-team").value; $("ps-team").innerHTML='<option value="">All teams</option>'+[...new Set(psGames.map(g=>g.team))].sort().map(t=>`<option${t===cur?" selected":""}>${esc(t)}</option>`).join("");
+    drawPsCfg(); renderPs();
+    if(unsubPs)unsubPs(); unsubPs=fdb.collection("preConf").onSnapshot(sn=>{ psConf={}; sn.docs.forEach(d=>psConf[d.id]=d.data()); if(!$("psSheet").hidden)renderPs(); },()=>{ $("ps-err").textContent="Couldn't load the confirmation statuses. The Firestore rules for the preseason list may need publishing."; });
+  }catch(_){ $("ps-list").innerHTML=""; $("ps-err").textContent="Couldn't load that school year. Check your connection."; }
+}
+$("psBtn").onclick=async()=>{ const cur=seasonOf(todayIso); const o=[]; for(let y=cur+1;y>=cur-1;y--)o.push(`<option value="${y}"${y===cur?" selected":""}>${y}–${String(y+1).slice(2)}</option>`); $("ps-season").innerHTML=o.join(""); showSheet("psSheet"); await loadCfg(true); loadPs(); };
+$("ps-season").onchange=loadPs; $("ps-team").onchange=renderPs; $("ps-show").onchange=renderPs;
+$("ps-close").onclick=closeSheet;
+$("ps-badd").onclick=async()=>{ const d=$("ps-bday").value; if(!d)return; const b=[...new Set((psCfg.blocked||[]).concat([d]))]; try{ await psCfgDoc().set({blocked:b,seasons:psCfg.seasons||{}}); psCfg.blocked=b; $("ps-bday").value=""; drawPsCfg(); }catch(_){ toast("Couldn't save. Check your connection."); } };
+$("ps-blist").addEventListener("click",async e=>{ const x=e.target.closest("[data-psbrm]"); if(!x)return; const b=(psCfg.blocked||[]).filter(d=>d!==x.dataset.psbrm); try{ await psCfgDoc().set({blocked:b,seasons:psCfg.seasons||{}}); psCfg.blocked=b; drawPsCfg(); }catch(_){ toast("Couldn't save."); } });
+$("ps-ssave").onclick=async()=>{ const seasons={}; document.querySelectorAll("[data-psfrom]").forEach(i=>{ const t=i.dataset.psfrom, to=document.querySelector(`[data-psto="${CSS.escape(t)}"]`).value; if(i.value||to)seasons[t]={from:i.value,to}; });
+  const bad=Object.entries(seasons).find(([,v])=>v.from&&v.to&&v.from>v.to); if(bad){ toast(bad[0]+": the start is after the end."); return; }
+  try{ await psCfgDoc().set({blocked:psCfg.blocked||[],seasons}); psCfg.seasons=seasons; toast("Season dates saved"); }catch(_){ toast("Couldn't save."); } };
+$("ps-list").addEventListener("click",async e=>{
+  const s=e.target.closest("[data-pssend]"), ok=e.target.closest("[data-psok]"), no=e.target.closest("[data-psno]");
+  if(s){ const g=psGames.find(x=>x.id===s.dataset.pssend), sc=findSchool(g.opp); if(!sc||!sc.email)return; s.disabled=true; s.textContent="Sending…";
+    try{ if(!mailCfg.url)throw new Error("Add the email sender link under Game confirmations → Email setup first."); const token=await fauth.currentUser.getIdToken();
+      const r=await fetch(mailCfg.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({idToken:token,action:"preseason",gameId:g.id,to:sc.email,school:sc.name})});
+      const j=await r.json(); if(!j.ok)throw new Error(j.error||"The email sender refused the request."); toast("Sent to "+sc.email); }
+    catch(err){ toast(String(err.message||err)); s.disabled=false; s.textContent=psConf[g.id]?"Send again":"Send"; } return; }
+  if(ok){ const g=psGames.find(x=>x.id===ok.dataset.psok), c=psConf[g.id]; const live=games.find(x=>x.id===g.id)||g; pendingPre={id:g.id,date:c.reqDate}; openSheet(live); $("g-date").value=c.reqDate; toast("New date filled in. Check it, then click Save."); return; }
+  if(no){ const g=psGames.find(x=>x.id===no.dataset.psno); if(!confirm("Decline the request to move "+g.team+" vs "+g.opp+"? No email is sent; reply to them yourself."))return; try{ await fdb.collection("preConf").doc(g.id).set({status:"declined"},{merge:true}); }catch(_){ toast("Couldn't save."); } }
+});
 
 // ---- game confirmations ----
 const schCol=()=>fdb.collection("schools");
