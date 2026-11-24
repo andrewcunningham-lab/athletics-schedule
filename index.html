@@ -12,6 +12,7 @@
 <script src="texting.js"></script>
 <script src="texting-ui.js"></script>
 <script src="attendance.js"></script>
+<script src="boards.js"></script>
 <style>
 html,body{margin:0}
 
@@ -325,6 +326,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
       <button class="btn" id="moreBtn" hidden aria-expanded="false" aria-haspopup="menu" aria-controls="adMenu">AD tools ▾</button>
       <div class="admmenu" id="adMenu" hidden role="menu" aria-label="AD tools">
         <div class="mg"><div class="mgh">Game day</div>
+          <button class="mi" role="menuitem" id="bdBtn" hidden>Boards<small>Coaches, hiring, deadlines, shootout, equipment</small></button>
           <button class="mi" role="menuitem" id="refBtn" hidden>Officials<small>Assign and confirm officials</small></button>
           <button class="mi" role="menuitem" id="txBtn" hidden>Officials texting <span class="txbadge" id="txMenuN" hidden></span><small>Season lists, drop fills, and replies (test mode)</small></button>
           <button class="mi" role="menuitem" id="weBtn" hidden>Worker emails<small>Where day-before reminders go</small></button>
@@ -594,6 +596,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
 </aside>
 <aside class="sheet wide" id="txSheet" hidden role="dialog" aria-labelledby="txTitle"></aside>
 <aside class="sheet wide" id="attSheet" hidden role="dialog" aria-labelledby="attTitle"></aside>
+<aside class="sheet wide" id="bdSheet" hidden role="dialog" aria-labelledby="bdTitle"></aside>
 <datalist id="workerNames"></datalist>
 <aside class="sheet wide" id="weSheet" hidden role="dialog" aria-labelledby="weTitle">
   <h3 id="weTitle">Worker emails</h3>
@@ -784,7 +787,7 @@ function renderList(){
 }
 
 // ---- sheets ----
-const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet","txSheet","attSheet"];
+const SHEETS=["eSheet","obSheet","pSheet","cSheet","wkSheet","sheet","expSheet","impSheet","mirSheet","renSheet","dupSheet","refSheet","cfSheet","spSheet","weSheet","txSheet","attSheet","bdSheet"];
 function showSheet(id){ $("scrim").hidden=false; SHEETS.forEach(s=>$(s).hidden=s!==id); }
 function closeSheet(){ $("scrim").hidden=true; SHEETS.forEach(s=>$(s).hidden=true); editingId=null; editingP=null; }
 function openSheet(g,date){
@@ -1018,7 +1021,7 @@ function setEditor(user){
   $("who").textContent=user?(canEdit?"Editing as "+user.email:"Signed in as "+user.email):"Not signed in";
   $("authBtn").hidden=false; $("authBtn").textContent=user?"Sign out":"Sign in";
   $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
-  $("txBtn").hidden=!canEdit; if(window.Texting){ if(canEdit&&fdb)Texting.init({fdb,toast,showSheet,closeSheet,slotsFor,needsRefs,sortGames,fmtDate,todayIso}); else Texting.stop(); }
+  $("txBtn").hidden=!canEdit; $("bdBtn").hidden=!canEdit; if(window.Boards&&canEdit&&fdb)Boards.init({fdb,toast,showSheet,closeSheet}); if(window.Texting){ if(canEdit&&fdb)Texting.init({fdb,toast,showSheet,closeSheet,slotsFor,needsRefs,sortGames,fmtDate,todayIso}); else Texting.stop(); }
   $("coachBtn").hidden=!canEdit; $("spBtn").hidden=!canSeeRefs; $("weBtn").hidden=!canEdit; $("moreBtn").hidden=!(canEdit||canSeeRefs);
   coachTeams=[]; gameTeams=[]; canEvents=false; $("attBtn").hidden=true; $("attUpBtn").hidden=!canEdit;
   if(window.Attendance&&fdb)Attendance.init({fdb,toast,showSheet,closeSheet,coachTeams:()=>coachTeams});
@@ -1404,6 +1407,7 @@ function refTab(which){ $("rt-need").setAttribute("aria-pressed",which==="need")
 $("rt-need").onclick=()=>refTab("need"); $("rt-list").onclick=()=>refTab("list");
 $("refBtn").onclick=()=>{ $("oerr").textContent=""; showSheet("refSheet"); refTab("need"); };
 $("txBtn").onclick=()=>{ if(window.Texting)Texting.open(); };
+$("bdBtn").onclick=()=>{ if(window.Boards&&canEdit)Boards.open(); };
 $("attBtn").onclick=()=>{ if(window.Attendance)Attendance.openCoach(); };
 $("attUpBtn").onclick=()=>{ if(window.Attendance)Attendance.openAD(); };
 let needGames=[];

@@ -19,6 +19,9 @@ service cloud.firestore {
       allow create: if isCoachFor(request.resource.data.team);
       allow update: if isCoachFor(resource.data.team) && request.resource.data.team == resource.data.team;
       allow delete: if isCoachFor(resource.data.team); }
+    // Boards (Trello replacement): AD-only.
+    match /boards/{id} { allow read, write: if isAD(); }
+    match /boardCards/{id} { allow read, write: if isAD(); }
     // Today's attendance per team: only that team's coaches (and ADs) can read; only ADs post it.
     match /attDay/{id} { allow read: if isAD() || resource == null || isCoachFor(resource.data.team); allow write: if isAD(); }
     match /events/{id} { allow read: if true; allow write: if isAD() || isEventEditor(); }
