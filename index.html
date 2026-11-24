@@ -9,10 +9,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="texting.js?v=20261124c"></script>
-<script src="texting-ui.js?v=20261124c"></script>
-<script src="attendance.js?v=20261124c"></script>
-<script src="boards.js?v=20261124c"></script>
+<script src="texting.js?v=20261124d"></script>
+<script src="texting-ui.js?v=20261124d"></script>
+<script src="attendance.js?v=20261124d"></script>
+<script src="boards.js?v=20261124d"></script>
 <style>
 html,body{margin:0}
 
@@ -321,6 +321,8 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
     <span class="spacer"></span>
     <button class="btn undo" id="undoBtn" hidden>Undo</button>
     <button class="btn" id="attBtn" hidden>Attendance</button>
+    <button class="btn" id="admBoardsBtn" hidden>Boards (view only)</button>
+    <button class="btn" id="admSpendBtn" hidden>Spending</button>
     <button class="btn" id="wkBtn">Sign up to work</button>
     <button class="btn" id="exportBtn">Export</button>
     <div class="admwrap">
@@ -550,8 +552,9 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
     <p class="small muted">Head coaches sign in with their school Google account. They can add, edit, cancel, and delete practices for their own teams only.</p>
     <div class="form">
       <div class="two"><label><span class="lbl">Name</span><input type="text" id="c-name"></label><label><span class="lbl">School email</span><input type="text" id="c-email"></label></div>
-      <label><span class="lbl">Role</span><select id="c-role"><option value="coach">Head coach (practices for their teams)</option><option value="events">Events only (e.g. GS Secretary)</option></select></label>
+      <label><span class="lbl">Role</span><select id="c-role"><option value="coach">Head coach (practices for their teams)</option><option value="events">Events only (e.g. GS Secretary)</option><option value="adm:Superintendent">Superintendent (view only)</option><option value="adm:High school principal">High school principal (view only)</option><option value="adm:Elementary principal">Elementary principal (view only)</option></select></label>
       <div id="c-teamsWrap"><span class="lbl">Teams</span><div id="c-teams" class="row" style="flex-wrap:wrap;gap:8px 14px;margin-top:4px"></div></div>
+      <p class="small muted" id="c-admNote" hidden>View only: sees games, practices, Boards, and Spending. Can't change anything, and doesn't see officials.</p>
       <label class="chk" id="c-gamesWrap"><input type="checkbox" id="c-games"> Can also add and edit games for these teams</label>
       <div class="row"><button class="btn primary" id="c-add">Save</button></div>
       <p class="err" id="cerr2"></p>
@@ -675,7 +678,7 @@ const REF_VIEWERS=["ad@sandoval501.org","cara.garner@sandoval501.org"];
 const POS=[["admin","Admin"],["book","Scorebook"],["clock","Main Clock"],["clock2","Clock 2"],["gate","Gate"],["conc","Concessions"],["nurse","Nurse"]];
 const POSL=Object.fromEntries(POS);
 const SIGNABLE=["admin","book","clock","clock2","gate","conc"];
-let canSeeRefs=false, me=null, su={}, unsubSu=null;
+let isSchoolAdmin=false, canSeeRefs=false, me=null, su={}, unsubSu=null;
 function defaultPos(g){ const t=g.team||""; if(/music/i.test(t)||unpaidTeam(t))return []; if(/baseball|softball/i.test(t)||/^all/i.test(t)||/meet the/i.test(g.opp||""))return ["admin","conc"]; if(/^HS\b.*basketball/i.test(t))return ["admin","book","clock","clock2","gate","conc"]; return ["admin","book","clock","gate","conc"]; }
 const posFor=g=>Array.isArray(g.pos)?g.pos:defaultPos(g);
 // PeeWee: no officials or workers are paid by the district, and nobody signs up to work its games.
@@ -1026,14 +1029,14 @@ function setEditor(user){
   $("addBtn").hidden=!canEdit; $("fileBtn").hidden=!canEdit; $("mirrorBtn").hidden=!canEdit; $("backupBtn").hidden=!canEdit; $("renameBtn").hidden=!canEdit; $("dupBtn").hidden=!canEdit; $("refBtn").hidden=!canEdit; $("cfBtn").hidden=!canEdit; $("x-offWrap").hidden=!canSeeRefs; renderUndo(); watchRefs(); watchSchools(); if(!canEdit)$("importBtn").hidden=true;
   $("txBtn").hidden=!canEdit; $("bdBtn").hidden=!canEdit; if(window.Boards&&canEdit&&fdb)Boards.init({fdb,toast,showSheet,closeSheet}); if(window.Texting){ if(canEdit&&fdb)Texting.init({fdb,toast,showSheet,closeSheet,slotsFor,needsRefs,sortGames,fmtDate,todayIso}); else Texting.stop(); }
   $("coachBtn").hidden=!canEdit; $("spBtn").hidden=!canSeeRefs; $("weBtn").hidden=!canEdit; $("moreBtn").hidden=!(canEdit||canSeeRefs);
-  coachTeams=[]; gameTeams=[]; canEvents=false; $("attBtn").hidden=true; $("attUpBtn").hidden=!canEdit;
+  coachTeams=[]; gameTeams=[]; canEvents=false; isSchoolAdmin=false; $("attBtn").hidden=true; $("admBoardsBtn").hidden=$("admSpendBtn").hidden=true; $("attUpBtn").hidden=!canEdit;
   if(window.Attendance&&fdb)Attendance.init({fdb,toast,showSheet,closeSheet,coachTeams:()=>coachTeams});
   loadCoach(user);
   checkSetup(); fixNames(); render();
 }
 async function loadCoach(user){
   if(!user||!user.email||canEdit||!fdb)return;
-  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ const x=d.data(); if(x.role==="events"){ canEvents=true; $("who").textContent="Events: "+user.email; if(mode!=="practices"){ mode="practices"; } } else { coachTeams=(x.teams||[]).slice(); if(x.games)gameTeams=coachTeams.slice(); $("who").textContent="Coach: "+user.email; $("attBtn").hidden=!coachTeams.length; } render(); } }catch(_){}
+  try{ const d=await fdb.collection("coaches").doc(user.email.toLowerCase()).get(); if(d.exists){ const x=d.data(); if(x.role==="admin"){ isSchoolAdmin=true; $("who").textContent=(x.title||"Administrator")+": "+user.email; $("admBoardsBtn").hidden=$("admSpendBtn").hidden=false; if(window.Boards)Boards.init({fdb,toast,showSheet,closeSheet,readOnly:true}); } else if(x.role==="events"){ canEvents=true; $("who").textContent="Events: "+user.email; if(mode!=="practices"){ mode="practices"; } } else { coachTeams=(x.teams||[]).slice(); if(x.games)gameTeams=coachTeams.slice(); $("who").textContent="Coach: "+user.email; $("attBtn").hidden=!coachTeams.length; } render(); } }catch(_){}
 }
 if(!window.firebase){
   $("who").textContent="Not connected"; status("This schedule couldn't reach its database. Check the internet connection and reload.");
@@ -1266,21 +1269,22 @@ function allTeams(){ return [...new Set(teamList.concat(games.map(g=>g.team)))].
 function drawCoachTeams(sel){ $("c-teams").innerHTML=[...new Set(allTeams().concat(pracTeams,sel))].filter(t=>t&&t!=="Music").sort().map(t=>`<label class="chk"><input type="checkbox" value="${esc(t)}"${sel.includes(t)?" checked":""}> ${esc(t)}</label>`).join(""); }
 async function loadCoaches(){
   try{ const sn=await coachCol().get(); coachesList=sn.docs.map(d=>Object.assign({email:d.id},d.data())).sort((a,b)=>String(a.name).localeCompare(b.name));
-    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow crow"><div class="cwho"><b>${esc(c.name||"")}</b><div class="small muted">${esc(c.email)}</div></div><div class="small cteams">${c.role==="events"?"Events only (GS Secretary)":esc((c.teams||[]).join(", "))+(c.games?" · practices and games":"")}</div><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
+    $("coachList").innerHTML=coachesList.length?coachesList.map(c=>`<div class="srow crow"><div class="cwho"><b>${esc(c.name||"")}</b><div class="small muted">${esc(c.email)}</div></div><div class="small cteams">${c.role==="admin"?esc(c.title||"Administrator")+" (view only)":c.role==="events"?"Events only (GS Secretary)":esc((c.teams||[]).join(", "))+(c.games?" · practices and games":"")}</div><button class="btn" data-cedit="${esc(c.email)}">Edit</button><button class="btn" data-cdel="${esc(c.email)}">Remove</button></div>`).join(""):'<p class="small muted">No coaches yet.</p>';
   }catch(_){ $("coachList").innerHTML='<p class="err">Couldn\'t load coaches.</p>'; }
 }
 $("coachList").addEventListener("click",async e=>{
-  const ed=e.target.closest("[data-cedit]"); if(ed){ const c=coachesList.find(x=>x.email===ed.dataset.cedit); $("c-name").value=c.name||""; $("c-email").value=c.email; $("c-role").value=c.role==="events"?"events":"coach"; $("c-teamsWrap").hidden=$("c-gamesWrap").hidden=c.role==="events"; $("c-games").checked=!!c.games; drawCoachTeams(c.teams||[]); return; }
+  const ed=e.target.closest("[data-cedit]"); if(ed){ const c=coachesList.find(x=>x.email===ed.dataset.cedit); $("c-name").value=c.name||""; $("c-email").value=c.email; $("c-role").value=c.role==="admin"?"adm:"+(c.title||"Superintendent"):c.role==="events"?"events":"coach"; syncRole(); $("c-games").checked=!!c.games; drawCoachTeams(c.teams||[]); return; }
   const dl=e.target.closest("[data-cdel]"); if(dl){ if(!confirm("Remove "+dl.dataset.cdel+"? They will no longer be able to edit the schedule."))return; try{ await coachCol().doc(dl.dataset.cdel).delete(); toast("Removed"); loadCoaches(); }catch(_){ toast("Couldn't remove."); } }
 });
-$("c-role").onchange=()=>{ $("c-teamsWrap").hidden=$("c-gamesWrap").hidden=$("c-role").value==="events"; };
+function syncRole(){ const v=$("c-role").value, adm=v.startsWith("adm:"); $("c-teamsWrap").hidden=$("c-gamesWrap").hidden=v==="events"||adm; $("c-admNote").hidden=!adm; }
+$("c-role").onchange=syncRole;
 $("c-add").onclick=async()=>{
-  const role=$("c-role").value, email=$("c-email").value.trim().toLowerCase(), name=$("c-name").value.trim(), teams=role==="events"?[]:[...document.querySelectorAll("#c-teams input:checked")].map(c=>c.value);
+  const rv=$("c-role").value, adm=rv.startsWith("adm:"), role=adm?"admin":rv, email=$("c-email").value.trim().toLowerCase(), name=$("c-name").value.trim(), teams=role!=="coach"?[]:[...document.querySelectorAll("#c-teams input:checked")].map(c=>c.value);
   $("cerr2").textContent="";
   if(!/^[^@\s]+@[^@\s]+$/.test(email)){ $("cerr2").textContent="Type their school email."; return; }
-  if(role!=="events"&&!teams.length){ $("cerr2").textContent="Pick at least one team."; return; }
-  const gamesOk=role!=="events"&&$("c-games").checked;
-  try{ await coachCol().doc(email).set({name,teams,role,games:gamesOk}); toast("Coach saved"); $("c-name").value=$("c-email").value=""; $("c-role").value="coach"; $("c-teamsWrap").hidden=false; $("c-gamesWrap").hidden=false; $("c-games").checked=false; drawCoachTeams([]); loadCoaches(); }catch(_){ $("cerr2").textContent="Couldn't save. Check your connection."; }
+  if(role==="coach"&&!teams.length){ $("cerr2").textContent="Pick at least one team."; return; }
+  const gamesOk=role==="coach"&&$("c-games").checked;
+  try{ await coachCol().doc(email).set(Object.assign({name,teams,role,games:gamesOk},adm?{title:rv.slice(4)}:{})); toast(adm?"Saved":"Coach saved"); $("c-name").value=$("c-email").value=""; $("c-role").value="coach"; syncRole(); $("c-games").checked=false; drawCoachTeams([]); loadCoaches(); }catch(_){ $("cerr2").textContent="Couldn't save. Check your connection."; }
 };
 async function loadLog(){
   try{ const sn=await fdb.collection("practiceLog").orderBy("at","desc").limit(100).get();
@@ -1314,7 +1318,8 @@ async function loadSpending(){
     <div class="sph">By month (all sports)</div><div class="list"><table class="sptab"><thead><tr><th>Month</th><th class="n">Officials</th><th class="n">Workers</th><th class="n">Total</th></tr></thead><tbody>${months.map(k=>{ const v=byMonth[k], d=new Date(k+"-01T12:00:00"); return `<tr><td>${MN[d.getMonth()]} ${d.getFullYear()}</td><td class="n" data-label="Officials">${money(v.o)}</td><td class="n" data-label="Workers">${money(v.w)}</td><td class="n" data-label="Total">${money(v.o+v.w)}</td></tr>`; }).join("")}<tr class="tot"><td>Season total</td><td class="n" data-label="Officials">${money(tO)}</td><td class="n" data-label="Workers">${money(tW)}</td><td class="n" data-label="Total">${money(tO+tW)}</td></tr></tbody></table></div>`;
   }catch(e){ $("spBody").innerHTML='<p class="err">Couldn\'t load spending. Check your connection and try again.</p>'; }
 }
-$("spBtn").onclick=()=>{ spSeasons(); showSheet("spSheet"); loadSpending(); };
+$("spBtn").onclick=$("admSpendBtn").onclick=()=>{ spSeasons(); showSheet("spSheet"); loadSpending(); };
+$("admBoardsBtn").onclick=()=>{ if(window.Boards&&isSchoolAdmin)Boards.open(); };
 $("sp-season").onchange=loadSpending; $("sp-close").onclick=closeSheet;
 
 // ---- worker emails (for day-before reminders) ----

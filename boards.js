@@ -102,7 +102,7 @@ function posFor(others,beforeId){
 }
 
 // ---------- screens ----------
-let ctx=null, boards=[], cards=[], cur=null, unsubB=null, unsubC=null, openCard=null, filter=null;
+let ro=false, ctx=null, boards=[], cards=[], cur=null, unsubB=null, unsubC=null, openCard=null, filter=null;
 const $=id=>document.getElementById(id), esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // No red-vs-green: Trello's green shows as blue and lime as teal. Every label also shows its name.
 const COLORS={red:"#c8102e",orange:"#c2410c",yellow:"#a16207",teal:"#0f766e",blue:"#1d4ed8",sky:"#0369a1",purple:"#7e22ce",pink:"#be185d",black:"#1c1917",gray:"#57534e"};
@@ -221,6 +221,7 @@ function blankCard(boardId,listId,pos,title,extra){
   return Object.assign({boardId,listId,pos,title,desc:"",labels:[],fields:{},checklists:[],due:"",start:"",dueDone:false,members:[],cover:"",attachments:[],template:false,archived:false,comments:[],activity:[{by:me()||"AD",text:"added this card",at:Date.now()}]},extra||{});
 }
 async function saveCard(id,patch,logText){
+  if(ro)return;
   const before=cards.find(c=>c.id===id); if(!before)return;
   const after=Object.assign({},before,patch);
   const b=boards.find(x=>x.id===after.boardId);
@@ -238,7 +239,7 @@ async function saveCard(id,patch,logText){
     else if(auto.log.some(t=>/SEASON ITEMS DONE/.test(t)))ctx.toast("Season items done — label added");
   }catch(e){ console.error(e); ctx.toast(RULES_MSG); }
 }
-const saveBoard=(patch,id)=>C("boards").doc(id||curBoard().id).update(patch).catch(e=>{ console.error(e); ctx.toast(RULES_MSG); });
+const saveBoard=(patch,id)=>ro?Promise.resolve():C("boards").doc(id||curBoard().id).update(patch).catch(e=>{ console.error(e); ctx.toast(RULES_MSG); });
 const copyChecklists=ks=>(ks||[]).map(k=>({id:"k_"+rid(),name:k.name,items:k.items.map(i=>({id:"i_"+rid(),text:i.text,done:false}))}));
 async function addCard(listId,title,tpl){
   const pos=posFor(listCards(listId),null);
@@ -249,6 +250,7 @@ async function addCard(listId,title,tpl){
 // ---------- board view ----------
 function draw(){
   const S=$("bdSheet"), body=$("bdBody"); if(!S||S.hidden||!body)return;
+  if(!openBoards().length&&ro){ S.style.background=BGS.gray; body.innerHTML=`<div style="padding:20px;color:#fff"><h3 style="margin:0 0 8px">Boards (view only)</h3><p>No boards yet.</p><button class="bdGrayB" style="background:#fff" id="bd-x">Close</button></div>`; $("bd-x").onclick=close; return; }
   if(!openBoards().length){
     S.style.background=BGS.gray;
     body.innerHTML=`<div style="padding:20px;color:#fff"><h3 style="margin:0 0 8px">Boards</h3><p>No boards yet.</p>
@@ -264,25 +266,25 @@ function draw(){
   const fOn=!!(filter&&(filter.text||(filter.labels||[]).length||(filter.members||[]).length||filter.due));
   const shown=liveCards().filter(c=>matches(c,filter,todayIso())).length;
   body.innerHTML=`<div class="bdTop">
-      <select id="bd-switch" aria-label="Switch board">${openBoards().map(x=>`<option value="${esc(x.id)}"${x.id===b.id?" selected":""}>${esc(x.name)}</option>`).join("")}<option value="__new">+ Create a board…</option></select>
-      <button class="bdName" id="bd-rename" title="Rename board">${esc(b.name)}</button>
+      <select id="bd-switch" aria-label="Switch board">${openBoards().map(x=>`<option value="${esc(x.id)}"${x.id===b.id?" selected":""}>${esc(x.name)}</option>`).join("")}${ro?"":'<option value="__new">+ Create a board…</option>'}</select>
+      ${ro?`<span class="bdName" style="cursor:default">${esc(b.name)}</span><span style="font-size:13px;background:rgba(255,255,255,.2);border-radius:6px;padding:3px 8px">View only</span>`:`<button class="bdName" id="bd-rename" title="Rename board">${esc(b.name)}</button>`}
       <span class="sp"></span>
       ${fOn?`<span style="font-size:13px">${shown} card${shown===1?"":"s"} match</span>`:""}
       <button class="bt${fOn?" bdFilterOn":""}" id="bd-filter">Filter${fOn?" (on)":""}</button>
       <button class="bt" id="bd-due">Due dates</button>
-      <button class="bt" id="bd-menu">⋯ Menu</button>
+      ${ro?"":'<button class="bt" id="bd-menu">⋯ Menu</button>'}
       <button class="bt" id="bd-close" aria-label="Close boards">✕ Close</button></div>
     <div class="bdCanvas" id="bdCanvas">${(b.lists||[]).filter(l=>!l.archived).map(l=>listHtml(b,l)).join("")}
-      <div class="bdAddList" id="bd-addlist"><button class="bdAddBtn">+ Add another list</button></div></div>`;
+      ${ro?"":'<div class="bdAddList" id="bd-addlist"><button class="bdAddBtn">+ Add another list</button></div>'}</div>`;
   $("bdCanvas").scrollLeft=scroll;
   $("bdCanvas").querySelectorAll("[data-cards]").forEach(n=>{ if(listScroll[n.dataset.cards])n.scrollTop=listScroll[n.dataset.cards]; });
   bind();
 }
 function listHtml(b,l){
   const cs=listCards(l.id), vis=cs.filter(c=>matches(c,filter,todayIso()));
-  return `<div class="bdList" data-list="${esc(l.id)}"><div class="bdLH" data-lhandle="${esc(l.id)}"><input value="${esc(l.name)}" data-lname="${esc(l.id)}" aria-label="List name"><span class="cnt">${cs.length}</span><button class="bdIcon" data-lmenu="${esc(l.id)}" aria-label="List actions for ${esc(l.name)}">⋯</button></div>
+  return `<div class="bdList" data-list="${esc(l.id)}"><div class="bdLH" data-lhandle="${esc(l.id)}"><input value="${esc(l.name)}" data-lname="${esc(l.id)}" aria-label="List name"${ro?" readonly":""}><span class="cnt">${cs.length}</span>${ro?"":`<button class="bdIcon" data-lmenu="${esc(l.id)}" aria-label="List actions for ${esc(l.name)}">⋯</button>`}</div>
     <div class="bdCards" data-cards="${esc(l.id)}">${vis.map(c=>cardFront(b,c)).join("")}</div>
-    <div data-comp="${esc(l.id)}"><button class="bdAddBtn" data-addcard="${esc(l.id)}">+ Add a card</button></div></div>`;
+    ${ro?"":`<div data-comp="${esc(l.id)}"><button class="bdAddBtn" data-addcard="${esc(l.id)}">+ Add a card</button></div>`}</div>`;
 }
 function fieldVal(f,v){ return f.type==="number"&&/cost|price|\$/i.test(f.name)?"$"+Number(v).toLocaleString():f.type==="date"?fmtD(v):v; }
 function cardFront(b,c){
@@ -302,21 +304,21 @@ function cardFront(b,c){
 function bind(){
   const B=$("bdBody");
   $("bd-switch").onchange=e=>{ if(e.target.value==="__new"){ e.target.value=cur; newBoard(); return; } cur=e.target.value; filter=null; watchCards(); };
-  $("bd-rename").onclick=e=>pop(e.currentTarget,"Rename board",`<input type="text" id="p-name" value="${esc(curBoard().name)}"><div style="margin-top:8px"><button class="bdBlue" id="p-ok">Save</button></div>`,p=>{
+  if($("bd-rename"))$("bd-rename").onclick=e=>pop(e.currentTarget,"Rename board",`<input type="text" id="p-name" value="${esc(curBoard().name)}"><div style="margin-top:8px"><button class="bdBlue" id="p-ok">Save</button></div>`,p=>{
     const go=()=>{ const n=p.querySelector("#p-name").value.trim(); if(n){ saveBoard({name:n}); closePop(); } };
     p.querySelector("#p-ok").onclick=go; p.querySelector("#p-name").onkeydown=e=>{ if(e.key==="Enter")go(); }; p.querySelector("#p-name").select(); });
   $("bd-close").onclick=close;
   $("bd-filter").onclick=e=>filterPop(e.currentTarget);
   $("bd-due").onclick=duePanel;
-  $("bd-menu").onclick=menuPanel;
-  $("bd-addlist").onclick=e=>{ const w=$("bd-addlist"); if(w.querySelector("input"))return;
+  if($("bd-menu"))$("bd-menu").onclick=menuPanel;
+  if($("bd-addlist"))$("bd-addlist").onclick=e=>{ const w=$("bd-addlist"); if(w.querySelector("input"))return;
     w.innerHTML=`<div style="background:#f1f2f4;border-radius:12px;padding:6px"><input type="text" placeholder="Enter list name…" aria-label="New list name" style="width:100%;box-sizing:border-box;border:2px solid #388bff;border-radius:6px;padding:6px 8px;font:inherit;font-size:14px"><div style="display:flex;gap:6px;margin-top:6px"><button class="bdBlue">Add list</button><button class="bdIcon" aria-label="Cancel">✕</button></div></div>`;
     const inp=w.querySelector("input"); inp.focus();
     const add=()=>{ const n=inp.value.trim(); if(!n)return; inp.value=""; saveBoard({lists:(curBoard().lists||[]).concat([{id:"l_"+rid(),name:n}])}); };
     w.querySelector(".bdBlue").onclick=ev=>{ ev.stopPropagation(); add(); };
     inp.onkeydown=ev=>{ if(ev.key==="Enter")add(); if(ev.key==="Escape")draw(); };
     w.querySelector(".bdIcon").onclick=ev=>{ ev.stopPropagation(); draw(); }; };
-  B.querySelectorAll("[data-lname]").forEach(inp=>{
+  if(!ro)B.querySelectorAll("[data-lname]").forEach(inp=>{
     inp.onchange=()=>{ const n=inp.value.trim(), b=curBoard(); if(n)saveBoard({lists:b.lists.map(x=>x.id===inp.dataset.lname?Object.assign({},x,{name:n}):x)}); else inp.value=(b.lists.find(x=>x.id===inp.dataset.lname)||{}).name||""; };
     inp.onkeydown=e=>{ if(e.key==="Enter"||e.key==="Escape")inp.blur(); }; });
   B.querySelectorAll("[data-lmenu]").forEach(btn=>btn.onclick=e=>{ e.stopPropagation(); listMenu(btn,btn.dataset.lmenu); });
@@ -348,6 +350,7 @@ function dragSetup(canvas){
   canvas.addEventListener("contextmenu",e=>{ if(e.target.closest("[data-card],[data-lhandle]")&&drag)e.preventDefault(); });
   canvas.onclick=e=>{ if(justDragged)return; const c=e.target.closest("[data-card]"); if(c)cardEditor(c.dataset.card); };
   function start(e,x,y,touch){
+    if(ro)return;
     if(e.target.closest("input,textarea,button,select,.bdComp"))return;
     const card=e.target.closest("[data-card]"), lh=e.target.closest("[data-lhandle]");
     if(!card&&!lh)return;
@@ -627,12 +630,21 @@ function paintEditor(force){
         <button class="bdGrayB" data-a="tpl">${c.template?"★ Stop being a template":"☆ Make template"}</button>
         ${c.archived?"":`<button class="bdGrayB" data-a="archive">🗄 Archive</button>`}
       </div></div></div>`;
+  if(ro){
+    m.querySelectorAll(".bdSide,[data-iaddw],[data-idel],[data-kdel],[data-khide],[data-cedit],[data-cdel],[data-adel],[data-unarch],[data-delete],[data-savedesc],[data-canceldesc],.bdChips [data-a],h4 [data-a],h4 [data-editdesc]").forEach(n=>n.remove());
+    const cm=m.querySelector("[data-cm]"); if(cm)cm.closest(".bdAct").remove();
+    const dsc=m.querySelector("[data-desc]"); if(dsc)dsc.closest(".bdSec").remove();
+    const dd=m.querySelector(".bdDesc"); if(dd){ dd.removeAttribute("data-editdesc"); dd.style.cursor="default"; }
+    m.querySelectorAll("input,textarea").forEach(n=>{ n.disabled=true; });
+    const sub=m.querySelector(".sub [data-a]"); if(sub){ const sp=document.createElement("b"); sp.textContent=sub.textContent; sub.replaceWith(sp); }
+    m.querySelectorAll("[data-iedit],[data-kname]").forEach(n=>{ n.removeAttribute("data-iedit"); n.removeAttribute("data-kname"); n.style.cursor="default"; });
+  }
   m.scrollTop=st;
   const ta=m.querySelector("[data-title]"); const fit=()=>{ ta.style.height="auto"; ta.style.height=ta.scrollHeight+"px"; }; fit(); ta.oninput=fit;
   ta.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); ta.blur(); } };
-  ta.onblur=()=>{ const v=ta.value.trim(); if(v&&v!==c.title)saveCard(c.id,{title:v},"renamed this card to “"+v+"”"); else ta.value=c.title; };
+  ta.onblur=()=>{ if(ro)return; const v=ta.value.trim(); if(v&&v!==c.title)saveCard(c.id,{title:v},"renamed this card to “"+v+"”"); else ta.value=c.title; };
   const fresh=()=>cards.find(x=>x.id===c.id)||c;
-  m.onchange=e=>{ const t=e.target, d=t.dataset, cc=fresh();
+  m.onchange=e=>{ if(ro)return; const t=e.target, d=t.dataset, cc=fresh();
     if(d.field){ const f=b.fields.find(x=>x.id===d.field); const fields=Object.assign({},cc.fields||{}); if(t.value==="")delete fields[f.id]; else fields[f.id]=f.type==="number"?Number(t.value):t.value; t.defaultValue=t.value; saveCard(c.id,{fields},"set "+f.name+(t.value?" to "+t.value:" to blank")); }
     if(d.chk){ const [kid,iid]=d.chk.split("|"); const k=cc.checklists.find(x=>x.id===kid), it=k.items.find(x=>x.id===iid);
       saveCard(c.id,{checklists:cc.checklists.map(k=>k.id!==kid?k:Object.assign({},k,{items:k.items.map(i=>i.id===iid?Object.assign({},i,{done:t.checked}):i)}))},(t.checked?"completed ":"marked incomplete ")+"“"+it.text+"” on "+k.name); }
@@ -640,6 +652,7 @@ function paintEditor(force){
     if("who" in d)setMe(t.value.trim()); };
   m.onclick=e=>{ const t=e.target.closest("button,[data-editdesc],[data-iedit],[data-kname]"); if(!t)return; const d=t.dataset, cc=fresh();
     if("x" in d)return closeEditor();
+    if(ro&&!("details" in d))return;
     if("editdesc" in d){ editingDesc=true; paintEditor(true); const x=m.querySelector("[data-desc]"); if(x){ x.focus(); x.setSelectionRange(x.value.length,x.value.length); } return; }
     if("savedesc" in d){ const x=m.querySelector("[data-desc]"); const v=x.value; x.defaultValue=v; editingDesc=false; if(v!==(cc.desc||""))saveCard(c.id,{desc:v},"updated the description"); else paintEditor(true); return; }
     if("canceldesc" in d){ editingDesc=false; paintEditor(true); return; }
@@ -743,13 +756,13 @@ function close(){ closeEditor(); closePanel(); closePop(); if(unsubC){ unsubC();
 const api={automation,seedPlan,matches,posFor};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;
 else root.Boards=Object.assign(api,{
-  init(c){ ctx=c; if(!document.getElementById("bdCss")){ const st=document.createElement("style"); st.id="bdCss"; st.textContent=CSS; document.head.appendChild(st); } },
+  init(c){ ctx=c; ro=!!c.readOnly; if(!document.getElementById("bdCss")){ const st=document.createElement("style"); st.id="bdCss"; st.textContent=CSS; document.head.appendChild(st); } },
   open(){
     $("bdSheet").innerHTML=`<span id="bdTitle" style="position:absolute;left:-9999px">Boards</span><div id="bdBody" style="display:flex;flex-direction:column;min-height:100%"><p style="color:#fff;padding:16px">Loading…</p></div>`;
     ctx.showSheet("bdSheet");
     if(unsubB)unsubB();
     unsubB=C("boards").onSnapshot(s=>{ boards=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>(a.order||0)-(b.order||0));
-      const cb=boards.find(b=>b.key==="coaches"); if(cb&&!byName(cb.labels,"VACANT"))C("boards").doc(cb.id).update({labels:(cb.labels||[]).concat([{id:"lb_"+rid(),name:"VACANT",color:"black"}])}).catch(()=>{});
+      const cb=boards.find(b=>b.key==="coaches"); if(!ro&&cb&&!byName(cb.labels,"VACANT"))C("boards").doc(cb.id).update({labels:(cb.labels||[]).concat([{id:"lb_"+rid(),name:"VACANT",color:"black"}])}).catch(()=>{});
       const ob=openBoards(); if(!cur||!ob.find(b=>b.id===cur)){ cur=ob[0]&&ob[0].id; watchCards(); } else if(!(drag&&drag.active)){ const keep=composing; draw(); if(keep&&document.querySelector(`[data-comp="${keep}"]`))composer(keep); }
       refreshPanel(); paintEditor(); },
       e=>{ console.error(e); $("bdBody").innerHTML='<p style="color:#fff;padding:16px">Couldn\'t load boards. The Firestore rules for boards need publishing first.</p>'; });
