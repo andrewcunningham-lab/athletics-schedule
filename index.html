@@ -156,6 +156,7 @@ td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
 textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;width:100%;box-sizing:border-box}
 .wrow{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:8px;align-items:center}
 .wrow .n{font-weight:700;font-size:13px}
+.slot .slotcf{font-size:11.5px;font-weight:700;white-space:nowrap}
 .wrow .wcf{display:block;font-size:11.5px;font-weight:700;color:var(--muted)}
 .wrow label{flex-direction:row;align-items:center;gap:5px;font-size:13px;white-space:nowrap}
 .wrow.off input[type=text]{opacity:.45}
@@ -969,7 +970,7 @@ async function dropSlot(g,slot,map){
 }
 function slotHtml(g,slot,map){
   const x=map[g.id]&&map[g.id][slot], L=POSL[slot];
-  if(x){ const mine=me&&(x.uid===me.uid||canEdit); return mine?`<button class="slot mine" data-drop="${slot}" data-gid="${esc(g.id)}" title="Click to remove"><b>${L}:</b> ${esc(x.name)} ✕</button>`:`<span class="slot"><b>${L}:</b> ${esc(x.name)}</span>`; }
+  if(x){ const mine=me&&(x.uid===me.uid||canEdit), ck=canSeeRefs&&x.confirmed?` <span class="slotcf">✓ Confirmed</span>`:""; return mine?`<button class="slot mine" data-drop="${slot}" data-gid="${esc(g.id)}" title="Click to remove"><b>${L}:</b> ${esc(x.name)}${ck} ✕</button>`:`<span class="slot"><b>${L}:</b> ${esc(x.name)}${ck}</span>`; }
   return SIGNABLE.includes(slot)?`<button class="slot open" data-take="${slot}" data-gid="${esc(g.id)}"><b>${L}:</b> Open, sign up</button>`:"";
 }
 async function addRosterNames(names){
