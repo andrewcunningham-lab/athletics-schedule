@@ -611,7 +611,7 @@ table.sptab tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
     <label><span class="lbl">School year</span><select id="sp-season"></select></label>
   </div>
   <div id="spBody"><p class="small muted">Loading…</p></div>
-  <p class="small muted" style="margin-top:12px">Home games only; cancelled games aren't counted. Officials: HS basketball $125 each, everything else $85 each. Workers: $30 each for scorebook, main clock, clock 2, and gate (admin and concessions are unpaid). Basketball games, and every game from Nov 1, 2026 on, count only the officials assigned and the worker spots someone is signed up for. Fall games before that, from before the scheduler, count a full crew: 2 officials plus every paid worker spot the game has.</p>
+  <p class="small muted" style="margin-top:12px">Home games only; cancelled games aren't counted. Officials: HS basketball $125 each, everything else $85 each. Workers: $30 each for scorebook, main clock, clock 2, and gate (admin and concessions are unpaid). Every home game counts a full crew, whether or not names are filled in: 3 officials for HS basketball, 2 for everything else, plus every paid worker spot the game has.</p>
   <div class="row" style="margin-top:12px"><button class="btn" id="sp-close">Close</button></div>
 </aside>
 <aside class="sheet wide" id="cfSheet" hidden role="dialog" aria-labelledby="cfTitle">
@@ -1297,14 +1297,11 @@ function spSeasons(){ const cur=seasonOf(iso(new Date())); const o=[]; for(let y
 async function loadSpending(){
   const y=+$("sp-season").value, from=y+"-07-01", to=(y+1)+"-06-30"; $("spBody").innerHTML='<p class="small muted">Loading…</p>';
   try{
-    const [gs,as,ss]=await Promise.all([gamesCol().where("date",">=",from).where("date","<=",to).get(), asgCol().where("date",">=",from).where("date","<=",to).get(), fdb.collection("signups").where("date",">=",from).where("date","<=",to).get()]);
-    const asg={}; as.docs.forEach(d=>asg[d.id]=d.data());
-    const wk={}; ss.docs.forEach(d=>{ const x=d.data(); if(PAID_SLOTS.includes(x.slot)&&realName(x.name))(wk[x.gameId]=wk[x.gameId]||new Set()).add(x.slot); });
+    const gs=await gamesCol().where("date",">=",from).where("date","<=",to).get();
     const byTeam={}, byMonth={}; let tO=0,tW=0;
     gs.docs.forEach(d=>{ const g=Object.assign({id:d.id},d.data()); if(g.ha!=="H"||g.cancelled||g.team==="Music")return;
-      const rate=isHsBB(g.team)?PAY.hsRef:PAY.ref; let refs, workers;
-      if(!isBB(g.team)&&g.date<FULL_BEFORE){ refs=2; workers=posFor(g).filter(p=>PAID_SLOTS.includes(p)).length; }
-      else { refs=((asg[g.id]||{}).slots||[]).filter(x=>realName(x&&x.name)).length; workers=(wk[g.id]||new Set()).size; }
+      // every home game counts a full crew, whether or not names are filled in
+      const rate=isHsBB(g.team)?PAY.hsRef:PAY.ref, refs=slotsFor(g), workers=posFor(g).filter(p=>PAID_SLOTS.includes(p)).length;
       const free=unpaidTeam(g.team), o=free?0:refs*rate, w=free?0:workers*PAY.worker;
       const T=byTeam[g.team]=byTeam[g.team]||{games:0,o:0,w:0}; T.games++; T.o+=o; T.w+=w;
       const mk=g.date.slice(0,7), M=byMonth[mk]=byMonth[mk]||{o:0,w:0}; M.o+=o; M.w+=w; tO+=o; tW+=w; });
