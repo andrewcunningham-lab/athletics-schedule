@@ -9,10 +9,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="texting.js?v=20261124f"></script>
-<script src="texting-ui.js?v=20261124f"></script>
-<script src="attendance.js?v=20261124f"></script>
-<script src="boards.js?v=20261124f"></script>
+<script src="texting.js?v=20261127a"></script>
+<script src="texting-ui.js?v=20261127a"></script>
+<script src="attendance.js?v=20261127a"></script>
+<script src="boards.js?v=20261127a"></script>
 <style>
 html,body{margin:0}
 
@@ -1567,7 +1567,8 @@ $("ps-list").addEventListener("click",async e=>{
   if(s){ const g=psGames.find(x=>x.id===s.dataset.pssend), sc=findSchool(g.opp); if(!sc||!sc.email)return; s.disabled=true; s.textContent="Sending…";
     try{ if(!mailCfg.url)throw new Error("Add the email sender link under Game confirmations → Email setup first."); const token=await fauth.currentUser.getIdToken();
       const r=await fetch(mailCfg.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({idToken:token,action:"preseason",gameId:g.id,to:sc.email,school:sc.name})});
-      const j=await r.json(); if(!j.ok)throw new Error(j.error||"The email sender refused the request."); toast("Sent to "+sc.email); }
+      const j=await r.json(); if(!j.ok)throw new Error(j.error||"The email sender refused the request.");
+      if(j.sent!==1)throw new Error("Not sent. The email script answered, but it's an older version that doesn't know preseason emails yet. The new script version needs to be deployed."); toast("Sent to "+sc.email); }
     catch(err){ toast(String(err.message||err)); s.disabled=false; s.textContent=psConf[g.id]?"Send again":"Send"; } return; }
   if(ok){ const g=psGames.find(x=>x.id===ok.dataset.psok), c=psConf[g.id]; const live=games.find(x=>x.id===g.id)||g; pendingPre={id:g.id,date:c.reqDate}; openSheet(live); $("g-date").value=c.reqDate; toast("New date filled in. Check it, then click Save."); return; }
   if(no){ const g=psGames.find(x=>x.id===no.dataset.psno); if(!confirm("Decline the request to move "+g.team+" vs "+g.opp+"? No email is sent; reply to them yourself."))return; try{ await fdb.collection("preConf").doc(g.id).set({status:"declined"},{merge:true}); }catch(_){ toast("Couldn't save."); } }
